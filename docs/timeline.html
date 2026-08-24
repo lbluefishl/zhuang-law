@@ -4,18 +4,24 @@
 <link rel="stylesheet" href="css/style.css">
 
 <nav class="site-nav">
-  <a href="gallery.html">Gallery</a>
-  <a href="timeline.html" aria-current="page">Timeline</a>
-  <a href="board.html">Board</a>
-  <a href="reel.html">Reel</a>
+  <a href="gallery.html" data-i18n="nav.gallery">Gallery</a>
+  <a href="timeline.html" aria-current="page" data-i18n="nav.timeline">Timeline</a>
+  <a href="board.html" data-i18n="nav.board">Board</a>
+  <a href="reel.html" data-i18n="nav.reel">Reel</a>
+  <a href="cats.html" data-i18n="nav.cats">Fiyero &amp; Satine</a>
   <span class="spacer"></span>
-  <a href="settings.html" class="nav-secondary">Settings</a>
-  <button class="sign-out" data-sign-out>Sign out</button>
+  <a href="settings.html" class="nav-secondary" data-i18n="nav.settings">Settings</a>
+  <button class="sign-out" data-sign-out data-i18n="nav.sign_out">Sign out</button>
 </nav>
 
 <main>
-  <h1>Timeline</h1>
-  <p class="loading-state" id="status">Loading…</p>
+  <h1 data-i18n="timeline.title">Timeline</h1>
+  <div class="timeline-nav" id="timeline-nav" hidden>
+    <button type="button" id="tl-prev">▲</button>
+    <span id="tl-current"></span>
+    <button type="button" id="tl-next">▼</button>
+  </div>
+  <p class="loading-state" id="status" data-i18n="timeline.loading">Loading…</p>
   <div id="timeline"></div>
 </main>
 
@@ -24,9 +30,15 @@
   import { supabaseClient, R2_PUBLIC_URL } from './js/supabase-client.js';
   import { requireAuth, initSignOutButtons } from './js/auth-guard.js';
   import { ageLabel } from './js/age.js';
+  import { applyStoredLanguage, syncLanguageFromProfile, t } from './js/i18n.js';
 
-  await requireAuth();
+  const session = await requireAuth();
   initSignOutButtons();
+  await syncLanguageFromProfile(supabaseClient, session.user.id);
+  const dict = await applyStoredLanguage();
+
+  document.getElementById('tl-prev').setAttribute('aria-label', t(dict, 'timeline.nav_prev'));
+  document.getElementById('tl-next').setAttribute('aria-label', t(dict, 'timeline.nav_next'));
 
   const timelineEl = document.getElementById('timeline');
   const status = document.getElementById('status');
@@ -35,7 +47,7 @@
     .from('collections').select('id, reference_date').eq('slug', 'baby').single();
 
   if (collectionError) {
-    status.textContent = 'Could not load the collection.';
+    status.textContent = t(dict, 'timeline.error_collection');
     throw collectionError;
   }
 
@@ -47,23 +59,24 @@
     .order('date_taken', { ascending: true });
 
   if (mediaError) {
-    status.textContent = 'Could not load photos.';
+    status.textContent = t(dict, 'timeline.error_media');
     throw mediaError;
   }
 
   if (media.length === 0 || !collection.reference_date) {
     status.textContent = media.length === 0
-      ? 'Nothing here yet.'
-      : 'No birth date set for this collection yet.';
+      ? t(dict, 'timeline.empty')
+      : t(dict, 'timeline.empty_no_birthdate');
   } else {
     status.remove();
   }
 
   let currentLabel = null;
   let currentGrid = null;
+  const groups = []; // { label, el } — one per age-group heading, in document order
 
   for (const item of media) {
-    const label = collection.reference_date ? ageLabel(item.date_taken, collection.reference_date) : null;
+    const label = collection.reference_date ? ageLabel(item.date_taken, collection.reference_date, dict, t) : null;
     if (label && label !== currentLabel) {
       currentLabel = label;
       const group = document.createElement('section');
@@ -75,6 +88,7 @@
       currentGrid.className = 'media-grid';
       group.appendChild(currentGrid);
       timelineEl.appendChild(group);
+      groups.push({ label, el: heading });
     }
     if (!currentGrid) continue;
 
@@ -96,6 +110,46 @@
     }
 
     currentGrid.appendChild(a);
+  }
+
+  // Month nav — arrows step between age-group headings; a scroll listener
+  // (IntersectionObserver below) keeps the label in sync when someone just
+  // scrolls by hand instead of tapping an arrow.
+  if (groups.length) {
+    const nav = document.getElementById('timeline-nav');
+    const prevBtn = document.getElementById('tl-prev');
+    const nextBtn = document.getElementById('tl-next');
+    const currentLabelEl = document.getElementById('tl-current');
+    nav.hidden = false;
+
+    let idx = 0;
+    function setIdx(i) {
+      idx = Math.max(0, Math.min(groups.length - 1, i));
+      currentLabelEl.textContent = groups[idx].label;
+      prevBtn.disabled = idx === 0;
+      nextBtn.disabled = idx === groups.length - 1;
+    }
+    prevBtn.addEventListener('click', () => {
+      setIdx(idx - 1);
+      groups[idx].el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+    nextBtn.addEventListener('click', () => {
+      setIdx(idx + 1);
+      groups[idx].el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+    setIdx(0);
+
+    // rootMargin pushes the "trigger line" below both sticky bars (nav +
+    // group heading) so a heading counts as "current" once it's actually
+    // clear of them, not the instant it touches the raw viewport top.
+    const observer = new IntersectionObserver((entries) => {
+      const visible = entries.filter((e) => e.isIntersecting);
+      if (!visible.length) return;
+      const topMost = visible.reduce((a, b) => (a.boundingClientRect.top < b.boundingClientRect.top ? a : b));
+      const i = groups.findIndex((g) => g.el === topMost.target);
+      if (i !== -1) setIdx(i);
+    }, { rootMargin: '-110px 0px -70% 0px', threshold: 0 });
+    groups.forEach((g) => observer.observe(g.el));
   }
 
   // Coming back from a photo — scroll to where it actually was (including

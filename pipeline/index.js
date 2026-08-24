@@ -27,7 +27,8 @@ function parseArgs(argv) {
   const [inputDir, ...rest] = argv;
   const limitFlag = rest.indexOf('--limit');
   const limit = limitFlag !== -1 ? Number(rest[limitFlag + 1]) : null;
-  return { inputDir, limit };
+  const allowMissingDate = rest.includes('--allow-missing-date');
+  return { inputDir, limit, allowMissingDate };
 }
 
 function classify(filePath) {
@@ -37,17 +38,23 @@ function classify(filePath) {
   return null;
 }
 
-async function buildRecords(items) {
+async function buildRecords(items, { fallbackDate } = {}) {
   const records = [];
   const failures = [];
   for (const item of items) {
     try {
       const tags = await readMetadata(item.filePath);
+      const exifDate = resolveDateTaken(tags, item.mediaType === 'video');
       records.push({
         ...item,
         fileName: path.basename(item.filePath),
         contentIdentifier: tags.ContentIdentifier || null,
-        dateTaken: resolveDateTaken(tags, item.mediaType === 'video'),
+        // Real EXIF date wins; fallbackDate (--allow-missing-date) is a last
+        // resort so the upload run itself never silently invents a date —
+        // it's the same fixed timestamp for every fallback file in this run,
+        // which doubles as a way to find them again later (see README note).
+        dateTaken: exifDate || fallbackDate || null,
+        usedFallbackDate: !exifDate && !!fallbackDate,
         width: tags.ImageWidth ?? null,
         height: tags.ImageHeight ?? null,
         durationSeconds: tags.Duration ?? null,
@@ -108,10 +115,17 @@ async function processRecord(record, ctx) {
 }
 
 async function main() {
-  const { inputDir, limit } = parseArgs(process.argv.slice(2));
+  const { inputDir, limit, allowMissingDate } = parseArgs(process.argv.slice(2));
   if (!inputDir) {
-    console.error('Usage: node index.js <folder> [--limit N]');
+    console.error('Usage: node index.js <folder> [--limit N] [--allow-missing-date]');
     process.exit(1);
+  }
+  // Captured once per run, not per file — every fallback-dated file in this
+  // run shares the exact same timestamp, which makes them easy to find again
+  // later (SELECT * FROM media WHERE date_taken = '<that timestamp>').
+  const fallbackDate = allowMissingDate ? new Date() : null;
+  if (allowMissingDate) {
+    console.log(`--allow-missing-date is on: files with no usable EXIF date will be uploaded anyway, dated ${fallbackDate.toISOString()} (today) as a placeholder.\n`);
   }
 
   const supabase = createSupabaseAdmin();
@@ -136,10 +150,10 @@ async function main() {
   const items = limit ? candidates.slice(0, limit) : candidates;
   console.log(`\nProcessing ${items.length} file(s) from ${inputDir}${limit ? ` (--limit ${limit})` : ''}\n`);
 
-  const { records, failures: exifFailures } = await buildRecords(items);
+  const { records, failures: exifFailures } = await buildRecords(items, { fallbackDate });
   pairLivePhotos(records);
 
-  const summary = { uploaded: 0, skipped: 0, failed: 0, failures: [...exifFailures] };
+  const summary = { uploaded: 0, skipped: 0, failed: 0, failures: [...exifFailures], fallbackDated: [] };
   const ctx = { supabase, r2, collectionId, existingContentIds, existingFilenames };
 
   for (const record of records) {
@@ -147,7 +161,8 @@ async function main() {
       const result = await processRecord(record, ctx);
       if (result.status === 'uploaded') {
         summary.uploaded++;
-        console.log(`OK: ${record.fileName} -> ${result.r2Key}`);
+        if (record.usedFallbackDate) summary.fallbackDated.push(record.fileName);
+        console.log(`OK: ${record.fileName} -> ${result.r2Key}${record.usedFallbackDate ? ' (fallback date — no EXIF)' : ''}`);
       } else if (result.status === 'skipped') {
         summary.skipped++;
         console.log(`SKIP (${result.reason}): ${record.fileName}`);
@@ -170,6 +185,10 @@ async function main() {
   if (summary.failures.length) {
     console.log('Failures:');
     summary.failures.forEach((f) => console.log(`  - ${f.file}: ${f.reason}`));
+  }
+  if (summary.fallbackDated.length) {
+    console.log(`\nUploaded with a placeholder date (${fallbackDate.toISOString()}) — fix these once real dates are known:`);
+    summary.fallbackDated.forEach((f) => console.log(`  - ${f}`));
   }
 }
 

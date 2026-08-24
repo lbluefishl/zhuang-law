@@ -156,6 +156,16 @@ h1 { font-size: 1.3rem; margin: 0 0 16px; }
   font-weight: 600;
 }
 
+/* starIcon() from icons.js is sized for the per-photo action bar (26px) —
+   shrunk down to sit inline with this tab's text. It uses currentColor, so
+   it still switches to the tab's light-on-dark color when active. */
+.gallery-tab svg {
+  width: 14px;
+  height: 14px;
+  vertical-align: -2px;
+  margin-right: 2px;
+}
+
 /* Gallery grid */
 .media-grid {
   display: grid;
@@ -195,15 +205,62 @@ h1 { font-size: 1.3rem; margin: 0 0 16px; }
 /* Timeline */
 .timeline-group { margin-bottom: 28px; }
 
+/* Sticky, right below .timeline-nav (also sticky, at top: 57px, below the
+   site nav) — the +48px accounts for the nav bar's own height so the two
+   don't overlap when both are stuck at once. scroll-margin-top gives
+   scrollIntoView() (used by the nav's arrow buttons) the same clearance. */
 .timeline-group h2 {
   position: sticky;
-  top: 57px;
+  top: 105px;
+  scroll-margin-top: 113px;
   background: var(--bg);
   font-size: 1rem;
   color: var(--text-muted);
   padding: 6px 0;
   margin: 0 0 8px;
   border-bottom: 1px solid var(--border);
+}
+
+/* Month nav — compact up/down stepper rather than a full list of every
+   month, per feedback (§ "less text on screen"). */
+.timeline-nav {
+  position: sticky;
+  top: 57px;
+  z-index: 9;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 6px 0;
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
+}
+
+.timeline-nav button {
+  min-height: 36px;
+  min-width: 36px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 1rem;
+  cursor: pointer;
+}
+
+.timeline-nav button:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.timeline-nav span {
+  min-width: 80px;
+  font-weight: 600;
+  font-size: 0.95rem;
+  text-align: center;
+}
+
+@media (hover: hover) {
+  .timeline-nav button:not(:disabled):hover { border-color: var(--text-muted); }
 }
 
 /* Language toggle */

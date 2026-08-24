@@ -6,29 +6,30 @@
 <link rel="stylesheet" href="css/reel.css">
 
 <nav class="site-nav">
-  <a href="gallery.html">Gallery</a>
-  <a href="timeline.html">Timeline</a>
-  <a href="board.html">Board</a>
-  <a href="reel.html" aria-current="page">Reel</a>
+  <a href="gallery.html" data-i18n="nav.gallery">Gallery</a>
+  <a href="timeline.html" data-i18n="nav.timeline">Timeline</a>
+  <a href="board.html" data-i18n="nav.board">Board</a>
+  <a href="reel.html" aria-current="page" data-i18n="nav.reel">Reel</a>
+  <a href="cats.html" data-i18n="nav.cats">Fiyero &amp; Satine</a>
   <span class="spacer"></span>
-  <a href="settings.html" class="nav-secondary">Settings</a>
-  <button class="sign-out" data-sign-out>Sign out</button>
+  <a href="settings.html" class="nav-secondary" data-i18n="nav.settings">Settings</a>
+  <button class="sign-out" data-sign-out data-i18n="nav.sign_out">Sign out</button>
 </nav>
 
 <main>
-  <p class="loading-state" id="status">Loading…</p>
+  <p class="loading-state" id="status" data-i18n="reel.loading">Loading…</p>
   <div class="reel-feed" id="reel-feed" hidden></div>
 </main>
 
 <dialog id="comments-drawer">
   <div class="drawer-header">
-    <h2>Comments</h2>
+    <h2 data-i18n="comments.heading">Comments</h2>
     <button class="drawer-close" type="button" id="drawer-close">✕</button>
   </div>
   <div class="drawer-body">
     <form class="comment-form" id="comment-form">
-      <textarea id="comment-body" placeholder="Add a comment…" required></textarea>
-      <button type="submit">Post</button>
+      <textarea id="comment-body" data-i18n-placeholder="comments.placeholder" placeholder="Add a comment…" required></textarea>
+      <button type="submit" data-i18n="comments.post">Post</button>
     </form>
     <div id="comment-list"></div>
   </div>
@@ -41,10 +42,13 @@
   import { createActionBar } from './js/action-bar.js';
   import { createCommentThread } from './js/comment-thread.js';
   import { loadReelVideos } from './js/reel.js';
+  import { applyStoredLanguage, syncLanguageFromProfile, t } from './js/i18n.js';
 
   const session = await requireAuth();
   initSignOutButtons();
   const myId = session.user.id;
+  await syncLanguageFromProfile(supabaseClient, myId);
+  const dict = await applyStoredLanguage();
 
   const status = document.getElementById('status');
   const feed = document.getElementById('reel-feed');
@@ -62,6 +66,7 @@
     myId,
     getMediaId: () => activeMediaId,
     onCountChange: (count) => activeBarForCount?.setCommentCount(count),
+    dict, t,
   });
   let activeBarForCount = null;
 
@@ -74,7 +79,7 @@
     status.remove();
     const empty = document.createElement('p');
     empty.className = 'empty-state';
-    empty.textContent = 'No videos yet.';
+    empty.textContent = t(dict, 'reel.empty');
     document.querySelector('main').appendChild(empty);
   }
 

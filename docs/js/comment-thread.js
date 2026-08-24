@@ -4,8 +4,11 @@ import { createAvatarElement } from './avatar.js';
 // Wires a comment list + post form to a given media item. `getMediaId` is a
 // function, not a fixed id, so a single shared drawer (like reel.html's) can
 // be re-pointed at whichever item is currently in view rather than needing
-// one drawer instance per item.
-export function createCommentThread({ supabaseClient, listEl, formEl, bodyInputEl, myId, getMediaId, onCountChange }) {
+// one drawer instance per item. `dict`/`t` are the loaded i18n dictionary and
+// its lookup helper (from js/i18n.js) — used for all the surrounding UI
+// chrome (buttons, placeholders, empty state). Comment *bodies* themselves
+// (c.body) are never touched — those stay exactly as the author typed them.
+export function createCommentThread({ supabaseClient, listEl, formEl, bodyInputEl, myId, getMediaId, onCountChange, dict, t }) {
   function formatDate(iso) {
     return new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
   }
@@ -22,16 +25,16 @@ export function createCommentThread({ supabaseClient, listEl, formEl, bodyInputE
     const authorLine = document.createElement('div');
     authorLine.className = 'comment-author';
     const relationship = c.profiles?.relationship ? ` (${c.profiles.relationship})` : '';
-    authorLine.textContent = `${c.profiles?.display_name ?? 'Someone'}${relationship} · ${formatDate(c.created_at)}`;
+    authorLine.textContent = `${c.profiles?.display_name ?? t(dict, 'comments.someone')}${relationship} · ${formatDate(c.created_at)}`;
     content.appendChild(authorLine);
 
     const body = document.createElement('p');
     body.className = 'comment-body';
     if (c.deleted_at) {
-      body.textContent = 'Comment deleted';
+      body.textContent = t(dict, 'comments.deleted');
       body.classList.add('comment-deleted');
     } else {
-      body.textContent = c.body;
+      body.textContent = c.body; // the author's own words — never translated
     }
     content.appendChild(body);
 
@@ -42,7 +45,7 @@ export function createCommentThread({ supabaseClient, listEl, formEl, bodyInputE
       if (!isReply) {
         const replyBtn = document.createElement('button');
         replyBtn.type = 'button';
-        replyBtn.textContent = 'Reply';
+        replyBtn.textContent = t(dict, 'comments.reply');
         replyBtn.addEventListener('click', () => toggleReplyForm(content, c.id));
         actions.appendChild(replyBtn);
       }
@@ -50,9 +53,9 @@ export function createCommentThread({ supabaseClient, listEl, formEl, bodyInputE
       if (c.user_id === myId) {
         const deleteBtn = document.createElement('button');
         deleteBtn.type = 'button';
-        deleteBtn.textContent = 'Delete';
+        deleteBtn.textContent = t(dict, 'comments.delete');
         deleteBtn.addEventListener('click', async () => {
-          if (!confirm('Delete this comment?')) return;
+          if (!confirm(t(dict, 'comments.confirm_delete'))) return;
           await softDeleteComment(supabaseClient, c.id);
           await refresh();
         });
@@ -73,11 +76,11 @@ export function createCommentThread({ supabaseClient, listEl, formEl, bodyInputE
     const form = document.createElement('form');
     form.className = 'reply-form';
     const textarea = document.createElement('textarea');
-    textarea.placeholder = 'Write a reply…';
+    textarea.placeholder = t(dict, 'comments.reply_placeholder');
     textarea.required = true;
     const submit = document.createElement('button');
     submit.type = 'submit';
-    submit.textContent = 'Reply';
+    submit.textContent = t(dict, 'comments.reply');
     form.append(textarea, submit);
 
     form.addEventListener('submit', async (e) => {
@@ -99,7 +102,7 @@ export function createCommentThread({ supabaseClient, listEl, formEl, bodyInputE
     if (tree.length === 0) {
       const empty = document.createElement('p');
       empty.className = 'empty-state';
-      empty.textContent = 'No comments yet.';
+      empty.textContent = t(dict, 'comments.empty');
       listEl.appendChild(empty);
     } else {
       for (const c of tree) {

@@ -5,31 +5,32 @@
 <link rel="stylesheet" href="css/viewer.css">
 
 <nav class="site-nav">
-  <a href="gallery.html">Gallery</a>
-  <a href="timeline.html">Timeline</a>
-  <a href="board.html">Board</a>
-  <a href="reel.html">Reel</a>
+  <a href="gallery.html" data-i18n="nav.gallery">Gallery</a>
+  <a href="timeline.html" data-i18n="nav.timeline">Timeline</a>
+  <a href="board.html" data-i18n="nav.board">Board</a>
+  <a href="reel.html" data-i18n="nav.reel">Reel</a>
+  <a href="cats.html" data-i18n="nav.cats">Fiyero &amp; Satine</a>
   <span class="spacer"></span>
-  <a href="settings.html" class="nav-secondary">Settings</a>
-  <button class="sign-out" data-sign-out>Sign out</button>
+  <a href="settings.html" class="nav-secondary" data-i18n="nav.settings">Settings</a>
+  <button class="sign-out" data-sign-out data-i18n="nav.sign_out">Sign out</button>
 </nav>
 
 <main>
   <div class="viewer-stage" id="stage">
     <a class="viewer-back-link" id="back-link">← Gallery</a>
-    <p class="loading-state" id="status">Loading…</p>
+    <p class="loading-state" id="status" data-i18n="media.loading">Loading…</p>
   </div>
 </main>
 
 <dialog id="comments-drawer">
   <div class="drawer-header">
-    <h2>Comments</h2>
+    <h2 data-i18n="comments.heading">Comments</h2>
     <button class="drawer-close" type="button" id="drawer-close">✕</button>
   </div>
   <div class="drawer-body">
     <form class="comment-form" id="comment-form">
-      <textarea id="comment-body" placeholder="Add a comment…" required></textarea>
-      <button type="submit">Post</button>
+      <textarea id="comment-body" data-i18n-placeholder="comments.placeholder" placeholder="Add a comment…" required></textarea>
+      <button type="submit" data-i18n="comments.post">Post</button>
     </form>
     <div id="comment-list"></div>
   </div>
@@ -42,10 +43,13 @@
   import { createActionBar } from './js/action-bar.js';
   import { createCommentThread } from './js/comment-thread.js';
   import { loadOrderedIds } from './js/media-nav.js';
+  import { applyStoredLanguage, syncLanguageFromProfile, t } from './js/i18n.js';
 
   const session = await requireAuth();
   initSignOutButtons();
   const myId = session.user.id;
+  await syncLanguageFromProfile(supabaseClient, myId);
+  const dict = await applyStoredLanguage();
 
   const stage = document.getElementById('stage');
   const status = document.getElementById('status');
@@ -64,10 +68,10 @@
   // it actually was, instead of resetting to the top.
   const backLink = document.getElementById('back-link');
   backLink.href = mediaId ? `${from}.html?scrollTo=${mediaId}` : `${from}.html`;
-  backLink.textContent = from === 'timeline' ? '← Timeline' : '← Gallery';
+  backLink.textContent = from === 'timeline' ? t(dict, 'media.back_timeline') : t(dict, 'media.back_gallery');
 
   if (!mediaId) {
-    status.textContent = 'No photo specified.';
+    status.textContent = t(dict, 'media.error_no_id');
   } else {
     // Kicked off immediately, in parallel with everything else below — this
     // used to run only after the image, action bar, AND comments had all
@@ -81,7 +85,7 @@
       .single();
 
     if (error || !item) {
-      status.textContent = 'Could not find that photo.';
+      status.textContent = t(dict, 'media.error_not_found');
     } else {
       status.remove();
 
@@ -134,14 +138,14 @@
           const prevLink = document.createElement('a');
           prevLink.className = 'viewer-prev-link';
           prevLink.href = `media.html?id=${prevId}&from=${from}`;
-          prevLink.textContent = '‹ Prev';
+          prevLink.textContent = t(dict, 'media.prev');
           navGroup.appendChild(prevLink);
         }
         if (nextId) {
           const nextLink = document.createElement('a');
           nextLink.className = 'viewer-next-link';
           nextLink.href = `media.html?id=${nextId}&from=${from}`;
-          nextLink.textContent = 'Next ›';
+          nextLink.textContent = t(dict, 'media.next');
           navGroup.appendChild(nextLink);
         }
         stage.appendChild(navGroup);
@@ -173,6 +177,7 @@
         myId,
         getMediaId: () => mediaId,
         onCountChange: actionBar.setCommentCount,
+        dict, t,
       });
 
       await thread.refresh();

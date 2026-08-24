@@ -18,7 +18,7 @@ export const BORDERS = ['none', 'solid', 'dashed', 'tape'];
 
 export const DECORATIONS = ['', '🎉', '🎂', '✨', '🌸', '💛'];
 
-export const MAX_MESSAGE_LENGTH = 240;
+export const MAX_MESSAGE_LENGTH = 1000;
 
 export async function loadBoard(supabaseClient, slug) {
   const { data, error } = await supabaseClient.from('boards').select('*').eq('slug', slug).single();

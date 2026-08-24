@@ -1,0 +1,32 @@
+<title>Fiyero &amp; Satine</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<link rel="stylesheet" href="css/style.css">
+
+<nav class="site-nav">
+  <a href="gallery.html" data-i18n="nav.gallery">Gallery</a>
+  <a href="timeline.html" data-i18n="nav.timeline">Timeline</a>
+  <a href="board.html" data-i18n="nav.board">Board</a>
+  <a href="reel.html" data-i18n="nav.reel">Reel</a>
+  <a href="cats.html" aria-current="page" data-i18n="nav.cats">Fiyero &amp; Satine</a>
+  <span class="spacer"></span>
+  <a href="settings.html" class="nav-secondary" data-i18n="nav.settings">Settings</a>
+  <button class="sign-out" data-sign-out data-i18n="nav.sign_out">Sign out</button>
+</nav>
+
+<main>
+  <h1 data-i18n="cats.title">Fiyero &amp; Satine</h1>
+  <p class="empty-state" data-i18n="cats.message">Will be built by Mike &amp; Ashley — stay tuned 🐾</p>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.0/dist/umd/supabase.js"></script>
+<script type="module">
+  import { supabaseClient } from './js/supabase-client.js';
+  import { requireAuth, initSignOutButtons } from './js/auth-guard.js';
+  import { applyStoredLanguage, syncLanguageFromProfile } from './js/i18n.js';
+
+  const session = await requireAuth();
+  initSignOutButtons();
+  await syncLanguageFromProfile(supabaseClient, session.user.id);
+  await applyStoredLanguage();
+</script>

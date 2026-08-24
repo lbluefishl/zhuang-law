@@ -4,33 +4,34 @@
 <link rel="stylesheet" href="css/style.css">
 
 <nav class="site-nav">
-  <a href="gallery.html">Gallery</a>
-  <a href="timeline.html">Timeline</a>
-  <a href="board.html">Board</a>
-  <a href="reel.html">Reel</a>
+  <a href="gallery.html" data-i18n="nav.gallery">Gallery</a>
+  <a href="timeline.html" data-i18n="nav.timeline">Timeline</a>
+  <a href="board.html" data-i18n="nav.board">Board</a>
+  <a href="reel.html" data-i18n="nav.reel">Reel</a>
+  <a href="cats.html" data-i18n="nav.cats">Fiyero &amp; Satine</a>
   <span class="spacer"></span>
-  <a href="settings.html" aria-current="page" class="nav-secondary">Settings</a>
-  <button class="sign-out" data-sign-out>Sign out</button>
+  <a href="settings.html" aria-current="page" class="nav-secondary" data-i18n="nav.settings">Settings</a>
+  <button class="sign-out" data-sign-out data-i18n="nav.sign_out">Sign out</button>
 </nav>
 
 <main class="settings-page">
-  <h1>Settings</h1>
+  <h1 data-i18n="settings.title">Settings</h1>
 
   <section>
-    <h2>Profile</h2>
+    <h2 data-i18n="settings.profile_heading">Profile</h2>
     <form id="profile-form" class="settings-form">
       <div class="avatar-row">
         <div id="avatar-preview"></div>
         <input type="file" id="avatar-input" accept="image/*">
       </div>
 
-      <label for="display-name">Display name</label>
+      <label for="display-name" data-i18n="settings.display_name_label">Display name</label>
       <input id="display-name" required>
 
-      <label for="relationship">How you're related</label>
-      <input id="relationship" placeholder="e.g. Grandma, Uncle">
+      <label for="relationship" data-i18n="settings.relationship_label">How you're related</label>
+      <input id="relationship" data-i18n-placeholder="settings.relationship_placeholder" placeholder="e.g. Grandma, Uncle">
 
-      <label for="language">Language</label>
+      <label for="language" data-i18n="settings.language_label">Language</label>
       <select id="language">
         <option value="en">English</option>
         <option value="zh">中文</option>
@@ -38,40 +39,40 @@
       </select>
 
       <p class="form-message" id="profile-message"></p>
-      <button type="submit">Save</button>
+      <button type="submit" data-i18n="settings.save_btn">Save</button>
     </form>
   </section>
 
   <section>
-    <h2>Change PIN</h2>
+    <h2 data-i18n="settings.pin_heading">Change PIN</h2>
     <form id="pin-form" class="settings-form">
-      <label for="current-pin">Current PIN</label>
+      <label for="current-pin" data-i18n="settings.current_pin_label">Current PIN</label>
       <input type="password" id="current-pin" class="pin-input" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" required>
 
-      <label for="new-pin">New PIN</label>
+      <label for="new-pin" data-i18n="settings.new_pin_label">New PIN</label>
       <input type="password" id="new-pin" class="pin-input" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" required>
 
-      <label for="confirm-new-pin">Confirm new PIN</label>
+      <label for="confirm-new-pin" data-i18n="settings.confirm_pin_label">Confirm new PIN</label>
       <input type="password" id="confirm-new-pin" class="pin-input" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" required>
 
       <p class="form-message" id="pin-message"></p>
-      <button type="submit">Change PIN</button>
+      <button type="submit" data-i18n="settings.change_pin_btn">Change PIN</button>
     </form>
   </section>
 
   <section>
-    <h2>Sessions</h2>
-    <p class="field-hint">If you're worried someone else has access on another device, this signs every device out — you'll need your PIN to sign back in here too.</p>
-    <button type="button" id="signout-all-btn" class="secondary-button">Sign out on all devices</button>
+    <h2 data-i18n="settings.sessions_heading">Sessions</h2>
+    <p class="field-hint" data-i18n="settings.sessions_hint">If you're worried someone else has access on another device, this signs every device out — you'll need your PIN to sign back in here too.</p>
+    <button type="button" id="signout-all-btn" class="secondary-button" data-i18n="settings.signout_all_btn">Sign out on all devices</button>
   </section>
 
   <section class="danger-zone">
-    <h2>Danger zone</h2>
+    <h2 data-i18n="settings.danger_heading">Danger zone</h2>
 
-    <button type="button" id="delete-comments-btn">Delete all my comments</button>
+    <button type="button" id="delete-comments-btn" data-i18n="settings.delete_comments_btn">Delete all my comments</button>
 
-    <button type="button" id="delete-account-btn">Delete my account</button>
-    <p class="field-hint">Clears your name, picture, and comments, and signs you out everywhere. This does not remove your login — ask whoever manages the site for that.</p>
+    <button type="button" id="delete-account-btn" data-i18n="settings.delete_account_btn">Delete my account</button>
+    <p class="field-hint" data-i18n="settings.delete_account_hint">Clears your name, picture, and comments, and signs you out everywhere. This does not remove your login — ask whoever manages the site for that.</p>
   </section>
 </main>
 
@@ -81,12 +82,14 @@
   import { requireAuth, initSignOutButtons, signOut } from './js/auth-guard.js';
   import { loadProfile, updateProfile, changePin, deleteAllMyComments, deleteMyAccount, resizeImageToDataUrl } from './js/settings.js';
   import { createAvatarElement } from './js/avatar.js';
-  import { setStoredLanguage } from './js/i18n.js';
+  import { setStoredLanguage, loadDictionary, applyTranslations, applyStoredLanguage, syncLanguageFromProfile, t } from './js/i18n.js';
 
   const session = await requireAuth();
   initSignOutButtons();
   const myId = session.user.id;
   const myEmail = session.user.email;
+  await syncLanguageFromProfile(supabaseClient, myId);
+  let dict = await applyStoredLanguage();
 
   // One message element per form instead of separate always-present
   // success/error paragraphs — two reserved-but-empty message lines were
@@ -121,8 +124,8 @@
       renderAvatarPreview(document.getElementById('display-name').value, pendingAvatarDataUrl);
     } catch (err) {
       setFormMessage(profileMessage, err.message === 'FILE_TOO_LARGE'
-        ? 'That image is too large.'
-        : 'Could not read that image — try a different file.', true);
+        ? t(dict, 'settings.msg_file_too_large')
+        : t(dict, 'settings.msg_file_invalid'), true);
     }
   });
 
@@ -141,9 +144,16 @@
     try {
       await updateProfile(supabaseClient, myId, fields);
       setStoredLanguage(fields.preferred_language);
-      setFormMessage(messageEl, 'Saved.');
+      // Language only takes visible effect once the save actually succeeds —
+      // not live as you pick an option in the dropdown (that read as broken/
+      // premature rather than a preview). dict is updated first so the
+      // "Saved." message itself already shows in the newly chosen language.
+      dict = await loadDictionary(fields.preferred_language);
+      applyTranslations(dict);
+      document.getElementById('relationship').placeholder = t(dict, 'settings.relationship_placeholder');
+      setFormMessage(messageEl, t(dict, 'settings.msg_saved'));
     } catch (err) {
-      setFormMessage(messageEl, 'Could not save — please try again.', true);
+      setFormMessage(messageEl, t(dict, 'settings.msg_save_error'), true);
     }
   });
 
@@ -157,22 +167,22 @@
     const confirmNewPin = document.getElementById('confirm-new-pin').value;
 
     if (!/^\d{6}$/.test(newPin)) {
-      setFormMessage(messageEl, 'New PIN must be exactly 6 numbers.', true);
+      setFormMessage(messageEl, t(dict, 'settings.msg_pin_new_format'), true);
       return;
     }
     if (newPin !== confirmNewPin) {
-      setFormMessage(messageEl, "New PINs don't match.", true);
+      setFormMessage(messageEl, t(dict, 'settings.msg_pin_mismatch'), true);
       return;
     }
 
     try {
       await changePin(supabaseClient, myEmail, currentPin, newPin);
-      setFormMessage(messageEl, 'PIN changed.');
+      setFormMessage(messageEl, t(dict, 'settings.msg_pin_changed'));
       e.target.reset();
     } catch (err) {
       setFormMessage(messageEl, err.message === 'WRONG_CURRENT_PIN'
-        ? 'Current PIN is incorrect.'
-        : 'Could not change PIN — please try again.', true);
+        ? t(dict, 'settings.msg_pin_wrong_current')
+        : t(dict, 'settings.msg_pin_change_error'), true);
     }
   });
 
@@ -182,13 +192,13 @@
   });
 
   document.getElementById('delete-comments-btn').addEventListener('click', async () => {
-    if (!confirm('Delete all comments you\'ve ever posted? This can\'t be undone.')) return;
+    if (!confirm(t(dict, 'settings.confirm_delete_comments'))) return;
     await deleteAllMyComments(supabaseClient, myId);
-    alert('Done — your comments have been deleted.');
+    alert(t(dict, 'settings.done_delete_comments'));
   });
 
   document.getElementById('delete-account-btn').addEventListener('click', async () => {
-    if (!confirm('Delete your account? This clears your name, picture, and comments, and signs you out everywhere. This cannot be undone.')) return;
+    if (!confirm(t(dict, 'settings.confirm_delete_account'))) return;
     await deleteMyAccount(supabaseClient);
     await signOut();
   });

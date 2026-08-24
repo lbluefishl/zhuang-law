@@ -4,33 +4,34 @@
 <link rel="stylesheet" href="css/style.css">
 
 <nav class="site-nav">
-  <a href="gallery.html" aria-current="page">Gallery</a>
-  <a href="timeline.html">Timeline</a>
-  <a href="board.html">Board</a>
-  <a href="reel.html">Reel</a>
+  <a href="gallery.html" aria-current="page" data-i18n="nav.gallery">Gallery</a>
+  <a href="timeline.html" data-i18n="nav.timeline">Timeline</a>
+  <a href="board.html" data-i18n="nav.board">Board</a>
+  <a href="reel.html" data-i18n="nav.reel">Reel</a>
+  <a href="cats.html" data-i18n="nav.cats">Fiyero &amp; Satine</a>
   <span class="spacer"></span>
-  <a href="settings.html" class="nav-secondary">Settings</a>
-  <button class="sign-out" data-sign-out>Sign out</button>
+  <a href="settings.html" class="nav-secondary" data-i18n="nav.settings">Settings</a>
+  <button class="sign-out" data-sign-out data-i18n="nav.sign_out">Sign out</button>
 </nav>
 
 <main>
-  <h1>Gallery</h1>
+  <h1 data-i18n="gallery.title">Gallery</h1>
   <div class="gallery-controls">
     <div class="gallery-tabs" id="gallery-tabs">
-      <button type="button" class="gallery-tab" data-tab="all" aria-current="page">All</button>
-      <button type="button" class="gallery-tab" data-tab="favorites">★ Favorites</button>
+      <button type="button" class="gallery-tab" data-tab="all" aria-current="page" data-i18n="gallery.tab_all">All</button>
+      <button type="button" class="gallery-tab" data-tab="favorites" id="favorites-tab"></button>
     </div>
     <label class="sort-control">
-      Sort by
+      <span data-i18n="gallery.sort_label">Sort by</span>
       <select id="sort-select">
-        <option value="date">Date</option>
-        <option value="likes">Likes</option>
-        <option value="comments">Comments</option>
-        <option value="views">Views</option>
+        <option value="date" data-i18n="gallery.sort_date">Date</option>
+        <option value="likes" data-i18n="gallery.sort_likes">Likes</option>
+        <option value="comments" data-i18n="gallery.sort_comments">Comments</option>
+        <option value="views" data-i18n="gallery.sort_views">Views</option>
       </select>
     </label>
   </div>
-  <p class="loading-state" id="status">Loading…</p>
+  <p class="loading-state" id="status" data-i18n="gallery.loading">Loading…</p>
   <div class="media-grid" id="grid"></div>
 </main>
 
@@ -39,12 +40,20 @@
   import { supabaseClient, R2_PUBLIC_URL } from './js/supabase-client.js';
   import { requireAuth, initSignOutButtons } from './js/auth-guard.js';
   import { loadMyFavoriteIds } from './js/favorites.js';
+  import { starIcon } from './js/icons.js';
+  import { applyStoredLanguage, syncLanguageFromProfile, t } from './js/i18n.js';
 
   const session = await requireAuth();
   initSignOutButtons();
+  await syncLanguageFromProfile(supabaseClient, session.user.id);
+  const dict = await applyStoredLanguage();
 
   const grid = document.getElementById('grid');
   const status = document.getElementById('status');
+
+  // Same star glyph as the per-photo favorite button (action-bar.js), not a
+  // plain "★" character, so the icon actually matches everywhere it appears.
+  document.getElementById('favorites-tab').innerHTML = `${starIcon(true)} ${t(dict, 'gallery.tab_favorites')}`;
 
   // v1 has one collection. Looked up by slug rather than hardcoded, per §5 —
   // pages are meant to be generated from the collections table.
@@ -52,7 +61,7 @@
     .from('collections').select('id').eq('slug', 'baby').single();
 
   if (collectionError) {
-    status.textContent = 'Could not load the collection.';
+    status.textContent = t(dict, 'gallery.error_collection');
     throw collectionError;
   }
 
@@ -64,7 +73,7 @@
     .order('date_taken', { ascending: false });
 
   if (mediaError) {
-    status.textContent = 'Could not load photos.';
+    status.textContent = t(dict, 'gallery.error_media');
     throw mediaError;
   }
 
@@ -99,7 +108,7 @@
 
     grid.innerHTML = '';
     if (sorted.length === 0) {
-      status.textContent = 'Nothing here yet.';
+      status.textContent = t(dict, 'gallery.empty');
       status.hidden = false;
     } else {
       status.hidden = true;

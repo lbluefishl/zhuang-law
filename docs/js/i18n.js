@@ -47,6 +47,26 @@ function getPath(obj, path) {
   return path.split('.').reduce((o, k) => (o ? o[k] : undefined), obj);
 }
 
+// Looks up `path` in `dict` and substitutes `{key}` placeholders from `vars`
+// — e.g. t(dict, 'age.week', { n: 3 }) with age.week = "Week {n}" -> "Week 3".
+// Falls back to `path` itself if the key is missing, so a translation gap
+// shows up as a visible dotted string instead of silently rendering blank.
+export function t(dict, path, vars = {}) {
+  const raw = getPath(dict, path);
+  if (typeof raw !== 'string') return path;
+  return raw.replace(/\{(\w+)\}/g, (_, key) => (key in vars ? vars[key] : `{${key}}`));
+}
+
+// The common case for every page past login/signup: no visible toggle UI,
+// just render whatever language the profile/localStorage already says.
+// Returns the dictionary for callers that also need it for JS-driven text
+// (error messages, dynamically-built elements, etc).
+export async function applyStoredLanguage() {
+  const dict = await loadDictionary(getStoredLanguage());
+  applyTranslations(dict);
+  return dict;
+}
+
 export function applyTranslations(dict) {
   document.querySelectorAll('[data-i18n]').forEach((el) => {
     const value = getPath(dict, el.dataset.i18n);

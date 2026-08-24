@@ -8,17 +8,18 @@
 <link rel="stylesheet" href="css/board.css">
 
 <nav class="site-nav">
-  <a href="gallery.html">Gallery</a>
-  <a href="timeline.html">Timeline</a>
-  <a href="board.html" aria-current="page">Board</a>
-  <a href="reel.html">Reel</a>
+  <a href="gallery.html" data-i18n="nav.gallery">Gallery</a>
+  <a href="timeline.html" data-i18n="nav.timeline">Timeline</a>
+  <a href="board.html" aria-current="page" data-i18n="nav.board">Board</a>
+  <a href="reel.html" data-i18n="nav.reel">Reel</a>
+  <a href="cats.html" data-i18n="nav.cats">Fiyero &amp; Satine</a>
   <span class="spacer"></span>
-  <a href="settings.html" class="nav-secondary">Settings</a>
-  <button class="sign-out" data-sign-out>Sign out</button>
+  <a href="settings.html" class="nav-secondary" data-i18n="nav.settings">Settings</a>
+  <button class="sign-out" data-sign-out data-i18n="nav.sign_out">Sign out</button>
 </nav>
 
 <main class="board-page">
-  <p class="loading-state" id="status">Loading…</p>
+  <p class="loading-state" id="status" data-i18n="board.loading">Loading…</p>
   <header class="board-header" id="board-header" hidden>
     <h1 id="board-title"></h1>
     <p id="board-subtitle"></p>
@@ -29,36 +30,44 @@
 
 <dialog id="compose-dialog">
   <form id="compose-form">
-    <h2 id="dialog-heading">Add your message</h2>
+    <h2 id="dialog-heading" data-i18n="board.compose_heading_add">Add your message</h2>
 
-    <label for="message-body">Message</label>
-    <textarea id="message-body" maxlength="240" required></textarea>
+    <label for="message-body" data-i18n="board.message_label">Message</label>
+    <textarea id="message-body" required></textarea>
     <p class="field-hint" id="char-count"></p>
 
-    <label>Font</label>
+    <label data-i18n="board.font_label">Font</label>
     <div class="swatch-row" id="font-row"></div>
 
-    <label>Color</label>
+    <label data-i18n="board.color_label">Color</label>
     <div class="swatch-row" id="color-row"></div>
 
-    <label>Border</label>
+    <label data-i18n="board.border_label">Border</label>
     <div class="swatch-row" id="border-row"></div>
 
-    <label>Sticker (optional)</label>
+    <label data-i18n="board.sticker_label">Sticker (optional)</label>
     <div class="swatch-row" id="decoration-row"></div>
 
-    <label>Preview</label>
+    <label data-i18n="board.preview_label">Preview</label>
     <div id="note-preview-wrap"></div>
 
     <p class="error-message" id="compose-error"></p>
 
     <div class="dialog-actions">
-      <button type="button" id="remove-btn" class="danger-link" hidden>Remove my message</button>
+      <button type="button" id="remove-btn" class="danger-link" hidden data-i18n="board.remove_btn">Remove my message</button>
       <span class="spacer"></span>
-      <button type="button" id="cancel-btn">Cancel</button>
-      <button type="submit">Save</button>
+      <button type="button" id="cancel-btn" data-i18n="board.cancel_btn">Cancel</button>
+      <button type="submit" data-i18n="board.save_btn">Save</button>
     </div>
   </form>
+</dialog>
+
+<dialog id="view-dialog">
+  <div id="view-note-wrap"></div>
+  <div class="dialog-actions">
+    <span class="spacer"></span>
+    <button type="button" id="view-close-btn" data-i18n="board.close_btn">Close</button>
+  </div>
 </dialog>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.0/dist/umd/supabase.js"></script>
@@ -69,18 +78,30 @@
     FONTS, COLORS, BORDERS, DECORATIONS, MAX_MESSAGE_LENGTH,
     loadBoard, loadMessages, upsertMyMessage, deleteMyMessage,
   } from './js/board.js';
+  import { applyStoredLanguage, syncLanguageFromProfile, t } from './js/i18n.js';
 
   const BOARD_SLUG = 'ashley-birthday-2026';
 
   const session = await requireAuth();
   initSignOutButtons();
   const myId = session.user.id;
+  await syncLanguageFromProfile(supabaseClient, session.user.id);
+  const dict = await applyStoredLanguage();
+
+  // FONTS/BORDERS labels come from board.js as plain English keys/labels —
+  // translated here (not in board.js, which stays presentation-agnostic) via
+  // this lookup, indexed the same way as the dict's own keys.
+  const FONT_LABEL_KEYS = { default: 'font_default', handwriting: 'font_handwriting', script: 'font_script', rounded: 'font_rounded' };
+  const BORDER_LABEL_KEYS = { none: 'border_none', solid: 'border_solid', dashed: 'border_dashed', tape: 'border_tape' };
 
   const status = document.getElementById('status');
   const header = document.getElementById('board-header');
   const grid = document.getElementById('board-grid');
   const dialog = document.getElementById('compose-dialog');
   const composeForm = document.getElementById('compose-form');
+  const viewDialog = document.getElementById('view-dialog');
+
+  document.getElementById('message-body').maxLength = MAX_MESSAGE_LENGTH;
 
   let board, messages, myMessage;
 
@@ -93,7 +114,7 @@
     };
   }
 
-  function renderNote(container, msg, { mine }) {
+  function renderNote(container, msg, { mine, expanded = false }) {
     const note = document.createElement('div');
     note.className = `note note-border-${msg.border_style}`;
     const style = noteStyle(msg.font, msg.note_color, msg.border_style);
@@ -114,28 +135,51 @@
     }
 
     const body = document.createElement('p');
-    body.className = 'note-body';
+    // At the 1000-char length, most messages won't fully fit in the grid
+    // card — expanded (used inside view-dialog) drops the line-clamp so the
+    // full text shows there instead. msg.body itself is exactly what the
+    // person typed — never run through translation (see feedback: board
+    // messages keep whatever language they were written in).
+    body.className = expanded ? 'note-body note-body-expanded' : 'note-body';
     body.textContent = msg.body;
     note.appendChild(body);
 
     const sig = document.createElement('p');
     sig.className = 'note-signature';
-    sig.textContent = `— ${msg.profiles?.display_name ?? 'Someone'}`;
+    sig.textContent = `— ${msg.profiles?.display_name ?? t(dict, 'board.signature_someone')}`;
     note.appendChild(sig);
 
     if (mine) {
       note.classList.add('note-mine');
-      note.title = 'Tap to edit your message';
+      note.title = t(dict, 'board.tap_to_edit');
       note.addEventListener('click', () => openCompose(msg.slot_index, msg));
+    } else if (msg.id && !expanded) {
+      // msg.id distinguishes a real board row from the live preview stub
+      // rendered inside the compose dialog (which has no id).
+      note.classList.add('note-viewable');
+      note.title = t(dict, 'board.tap_to_read');
+      note.addEventListener('click', () => openView(msg));
     }
     container.appendChild(note);
   }
+
+  function openView(msg) {
+    const wrap = document.getElementById('view-note-wrap');
+    wrap.innerHTML = '';
+    renderNote(wrap, msg, { mine: false, expanded: true });
+    viewDialog.showModal();
+  }
+
+  document.getElementById('view-close-btn').addEventListener('click', () => viewDialog.close());
 
   async function render() {
     board = await loadBoard(supabaseClient, BOARD_SLUG);
     messages = await loadMessages(supabaseClient, board.id);
     myMessage = messages.find((m) => m.user_id === myId) || null;
 
+    // board.title / board.subtitle are admin-authored content in the boards
+    // table (like a comment or a board message), not app chrome — no
+    // per-language columns for them yet, so they render as entered.
     document.getElementById('board-title').textContent = board.title;
     document.getElementById('board-subtitle').textContent = board.subtitle || '';
     header.hidden = false;
@@ -155,7 +199,7 @@
         empty.type = 'button';
         empty.className = 'board-slot-empty';
         empty.textContent = '+';
-        empty.setAttribute('aria-label', 'Add your message here');
+        empty.setAttribute('aria-label', t(dict, 'board.add_placeholder_label'));
         empty.addEventListener('click', () => openCompose(i, null));
         slotEl.appendChild(empty);
       }
@@ -189,7 +233,7 @@
     const wrap = document.getElementById('note-preview-wrap');
     wrap.innerHTML = '';
     renderNote(wrap, {
-      body: document.getElementById('message-body').value || 'Your message will look like this!',
+      body: document.getElementById('message-body').value || t(dict, 'board.preview_placeholder'),
       font: composeState.font,
       note_color: composeState.color,
       border_style: composeState.border,
@@ -205,14 +249,16 @@
       ? { font: existing.font, color: existing.note_color, border: existing.border_style, decoration: existing.decoration || '' }
       : { font: 'default', color: 'yellow', border: 'solid', decoration: '' };
 
-    document.getElementById('dialog-heading').textContent = existing ? 'Edit your message' : 'Add your message';
+    document.getElementById('dialog-heading').textContent = existing
+      ? t(dict, 'board.compose_heading_edit')
+      : t(dict, 'board.compose_heading_add');
     document.getElementById('message-body').value = existing?.body || '';
     document.getElementById('char-count').textContent = `${(existing?.body || '').length} / ${MAX_MESSAGE_LENGTH}`;
     document.getElementById('remove-btn').hidden = !existing;
     document.getElementById('compose-error').textContent = '';
 
     buildSwatchRow(document.getElementById('font-row'), Object.keys(FONTS), composeState.font, (btn, key) => {
-      btn.textContent = FONTS[key].label;
+      btn.textContent = t(dict, `board.${FONT_LABEL_KEYS[key]}`);
       btn.style.fontFamily = FONTS[key].family;
     }, (key) => { composeState.font = key; });
 
@@ -221,7 +267,7 @@
     }, (key) => { composeState.color = key; });
 
     buildSwatchRow(document.getElementById('border-row'), BORDERS, composeState.border, (btn, key) => {
-      btn.textContent = key;
+      btn.textContent = t(dict, `board.${BORDER_LABEL_KEYS[key]}`);
     }, (key) => { composeState.border = key; });
 
     buildSwatchRow(document.getElementById('decoration-row'), DECORATIONS, composeState.decoration, (btn, key) => {
@@ -240,7 +286,7 @@
   document.getElementById('cancel-btn').addEventListener('click', () => dialog.close());
 
   document.getElementById('remove-btn').addEventListener('click', async () => {
-    if (!myMessage || !confirm('Remove your message from the board?')) return;
+    if (!myMessage || !confirm(t(dict, 'board.confirm_remove'))) return;
     await deleteMyMessage(supabaseClient, myMessage.id);
     dialog.close();
     await render();
@@ -269,8 +315,8 @@
       await render();
     } catch (err) {
       errorEl.textContent = err.message === 'SLOT_TAKEN'
-        ? 'Someone just took that spot — pick another.'
-        : 'Could not save — please try again.';
+        ? t(dict, 'board.error_slot_taken')
+        : t(dict, 'board.error_save');
       if (err.message === 'SLOT_TAKEN') { dialog.close(); await render(); }
     }
   });
