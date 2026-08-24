@@ -1,0 +1,107 @@
+<title>Timeline</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<link rel="stylesheet" href="css/style.css">
+
+<nav class="site-nav">
+  <a href="gallery.html">Gallery</a>
+  <a href="timeline.html" aria-current="page">Timeline</a>
+  <a href="board.html">Board</a>
+  <a href="reel.html">Reel</a>
+  <span class="spacer"></span>
+  <a href="settings.html" class="nav-secondary">Settings</a>
+  <button class="sign-out" data-sign-out>Sign out</button>
+</nav>
+
+<main>
+  <h1>Timeline</h1>
+  <p class="loading-state" id="status">Loading…</p>
+  <div id="timeline"></div>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.0/dist/umd/supabase.js"></script>
+<script type="module">
+  import { supabaseClient, R2_PUBLIC_URL } from './js/supabase-client.js';
+  import { requireAuth, initSignOutButtons } from './js/auth-guard.js';
+  import { ageLabel } from './js/age.js';
+
+  await requireAuth();
+  initSignOutButtons();
+
+  const timelineEl = document.getElementById('timeline');
+  const status = document.getElementById('status');
+
+  const { data: collection, error: collectionError } = await supabaseClient
+    .from('collections').select('id, reference_date').eq('slug', 'baby').single();
+
+  if (collectionError) {
+    status.textContent = 'Could not load the collection.';
+    throw collectionError;
+  }
+
+  const { data: media, error: mediaError } = await supabaseClient
+    .from('media')
+    .select('id, thumb_key, media_type, date_taken, is_live_photo_video')
+    .eq('collection_id', collection.id)
+    .eq('is_live_photo_video', false)
+    .order('date_taken', { ascending: true });
+
+  if (mediaError) {
+    status.textContent = 'Could not load photos.';
+    throw mediaError;
+  }
+
+  if (media.length === 0 || !collection.reference_date) {
+    status.textContent = media.length === 0
+      ? 'Nothing here yet.'
+      : 'No birth date set for this collection yet.';
+  } else {
+    status.remove();
+  }
+
+  let currentLabel = null;
+  let currentGrid = null;
+
+  for (const item of media) {
+    const label = collection.reference_date ? ageLabel(item.date_taken, collection.reference_date) : null;
+    if (label && label !== currentLabel) {
+      currentLabel = label;
+      const group = document.createElement('section');
+      group.className = 'timeline-group';
+      const heading = document.createElement('h2');
+      heading.textContent = label;
+      group.appendChild(heading);
+      currentGrid = document.createElement('div');
+      currentGrid.className = 'media-grid';
+      group.appendChild(currentGrid);
+      timelineEl.appendChild(group);
+    }
+    if (!currentGrid) continue;
+
+    const a = document.createElement('a');
+    a.href = `media.html?id=${item.id}&from=timeline`;
+    a.dataset.mediaId = item.id;
+
+    const img = document.createElement('img');
+    img.src = `${R2_PUBLIC_URL}/${item.thumb_key}`;
+    img.loading = 'lazy';
+    img.alt = '';
+    a.appendChild(img);
+
+    if (item.media_type === 'video') {
+      const badge = document.createElement('span');
+      badge.className = 'video-badge';
+      badge.textContent = '▶';
+      a.appendChild(badge);
+    }
+
+    currentGrid.appendChild(a);
+  }
+
+  // Coming back from a photo — scroll to where it actually was (including
+  // the right age-group section) instead of resetting to the top.
+  const scrollTo = new URLSearchParams(window.location.search).get('scrollTo');
+  if (scrollTo) {
+    timelineEl.querySelector(`[data-media-id="${scrollTo}"]`)?.scrollIntoView({ block: 'center' });
+  }
+</script>

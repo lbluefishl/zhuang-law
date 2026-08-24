@@ -1,0 +1,154 @@
+<title>Gallery</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<link rel="stylesheet" href="css/style.css">
+
+<nav class="site-nav">
+  <a href="gallery.html" aria-current="page">Gallery</a>
+  <a href="timeline.html">Timeline</a>
+  <a href="board.html">Board</a>
+  <a href="reel.html">Reel</a>
+  <span class="spacer"></span>
+  <a href="settings.html" class="nav-secondary">Settings</a>
+  <button class="sign-out" data-sign-out>Sign out</button>
+</nav>
+
+<main>
+  <h1>Gallery</h1>
+  <div class="gallery-controls">
+    <div class="gallery-tabs" id="gallery-tabs">
+      <button type="button" class="gallery-tab" data-tab="all" aria-current="page">All</button>
+      <button type="button" class="gallery-tab" data-tab="favorites">★ Favorites</button>
+    </div>
+    <label class="sort-control">
+      Sort by
+      <select id="sort-select">
+        <option value="date">Date</option>
+        <option value="likes">Likes</option>
+        <option value="comments">Comments</option>
+        <option value="views">Views</option>
+      </select>
+    </label>
+  </div>
+  <p class="loading-state" id="status">Loading…</p>
+  <div class="media-grid" id="grid"></div>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.0/dist/umd/supabase.js"></script>
+<script type="module">
+  import { supabaseClient, R2_PUBLIC_URL } from './js/supabase-client.js';
+  import { requireAuth, initSignOutButtons } from './js/auth-guard.js';
+  import { loadMyFavoriteIds } from './js/favorites.js';
+
+  const session = await requireAuth();
+  initSignOutButtons();
+
+  const grid = document.getElementById('grid');
+  const status = document.getElementById('status');
+
+  // v1 has one collection. Looked up by slug rather than hardcoded, per §5 —
+  // pages are meant to be generated from the collections table.
+  const { data: collection, error: collectionError } = await supabaseClient
+    .from('collections').select('id').eq('slug', 'baby').single();
+
+  if (collectionError) {
+    status.textContent = 'Could not load the collection.';
+    throw collectionError;
+  }
+
+  const { data: media, error: mediaError } = await supabaseClient
+    .from('media')
+    .select('id, thumb_key, media_type, is_live_photo_video, date_taken, view_count')
+    .eq('collection_id', collection.id)
+    .eq('is_live_photo_video', false) // §6: the video half of a Live Photo pair stays hidden here
+    .order('date_taken', { ascending: false });
+
+  if (mediaError) {
+    status.textContent = 'Could not load photos.';
+    throw mediaError;
+  }
+
+  const [favoriteIds, likeCounts, commentCounts] = await Promise.all([
+    loadMyFavoriteIds(supabaseClient, session.user.id),
+    countByMediaId('likes'),
+    countByMediaId('comments', { excludeDeleted: true }),
+  ]);
+
+  // Raw per-media tallies for sorting — small enough at this scale (a family
+  // site, not a public platform) to just fetch every row and count in JS
+  // rather than lean on a fragile PostgREST embedded-count-with-filter query.
+  async function countByMediaId(table, { excludeDeleted } = {}) {
+    let query = supabaseClient.from(table).select('media_id');
+    if (excludeDeleted) query = query.is('deleted_at', null);
+    const { data, error } = await query;
+    if (error) throw error;
+    const counts = new Map();
+    for (const row of data) counts.set(row.media_id, (counts.get(row.media_id) || 0) + 1);
+    return counts;
+  }
+
+  const SORTERS = {
+    date: (a, b) => new Date(b.date_taken) - new Date(a.date_taken),
+    likes: (a, b) => (likeCounts.get(b.id) || 0) - (likeCounts.get(a.id) || 0),
+    comments: (a, b) => (commentCounts.get(b.id) || 0) - (commentCounts.get(a.id) || 0),
+    views: (a, b) => (b.view_count || 0) - (a.view_count || 0),
+  };
+
+  function renderGrid(items) {
+    const sorted = [...items].sort(SORTERS[document.getElementById('sort-select').value]);
+
+    grid.innerHTML = '';
+    if (sorted.length === 0) {
+      status.textContent = 'Nothing here yet.';
+      status.hidden = false;
+    } else {
+      status.hidden = true;
+    }
+
+    for (const item of sorted) {
+      const a = document.createElement('a');
+      a.href = `media.html?id=${item.id}&from=gallery`;
+      a.dataset.mediaId = item.id;
+
+      const img = document.createElement('img');
+      img.src = `${R2_PUBLIC_URL}/${item.thumb_key}`;
+      img.loading = 'lazy';
+      img.alt = '';
+      a.appendChild(img);
+
+      if (item.media_type === 'video') {
+        const badge = document.createElement('span');
+        badge.className = 'video-badge';
+        badge.textContent = '▶';
+        a.appendChild(badge);
+      }
+
+      grid.appendChild(a);
+    }
+  }
+
+  function currentItems() {
+    const activeTab = document.querySelector('.gallery-tab[aria-current="page"]').dataset.tab;
+    return activeTab === 'favorites' ? media.filter((m) => favoriteIds.has(m.id)) : media;
+  }
+
+  document.querySelectorAll('.gallery-tab').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.gallery-tab').forEach((b) => b.removeAttribute('aria-current'));
+      btn.setAttribute('aria-current', 'page');
+      renderGrid(currentItems());
+    });
+  });
+
+  document.getElementById('sort-select').addEventListener('change', () => renderGrid(currentItems()));
+
+  renderGrid(currentItems());
+
+  // Coming back from a photo — scroll to where it actually was instead of
+  // resetting to the top. No smooth-scroll animation; this should feel like
+  // picking back up where you left off, not drawing attention to itself.
+  const scrollTo = new URLSearchParams(window.location.search).get('scrollTo');
+  if (scrollTo) {
+    grid.querySelector(`[data-media-id="${scrollTo}"]`)?.scrollIntoView({ block: 'center' });
+  }
+</script>

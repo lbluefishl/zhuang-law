@@ -1,0 +1,145 @@
+<title>Reel</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<link rel="stylesheet" href="css/style.css">
+<link rel="stylesheet" href="css/viewer.css">
+<link rel="stylesheet" href="css/reel.css">
+
+<nav class="site-nav">
+  <a href="gallery.html">Gallery</a>
+  <a href="timeline.html">Timeline</a>
+  <a href="board.html">Board</a>
+  <a href="reel.html" aria-current="page">Reel</a>
+  <span class="spacer"></span>
+  <a href="settings.html" class="nav-secondary">Settings</a>
+  <button class="sign-out" data-sign-out>Sign out</button>
+</nav>
+
+<main>
+  <p class="loading-state" id="status">Loading…</p>
+  <div class="reel-feed" id="reel-feed" hidden></div>
+</main>
+
+<dialog id="comments-drawer">
+  <div class="drawer-header">
+    <h2>Comments</h2>
+    <button class="drawer-close" type="button" id="drawer-close">✕</button>
+  </div>
+  <div class="drawer-body">
+    <form class="comment-form" id="comment-form">
+      <textarea id="comment-body" placeholder="Add a comment…" required></textarea>
+      <button type="submit">Post</button>
+    </form>
+    <div id="comment-list"></div>
+  </div>
+</dialog>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.0/dist/umd/supabase.js"></script>
+<script type="module">
+  import { supabaseClient, R2_PUBLIC_URL } from './js/supabase-client.js';
+  import { requireAuth, initSignOutButtons } from './js/auth-guard.js';
+  import { createActionBar } from './js/action-bar.js';
+  import { createCommentThread } from './js/comment-thread.js';
+  import { loadReelVideos } from './js/reel.js';
+
+  const session = await requireAuth();
+  initSignOutButtons();
+  const myId = session.user.id;
+
+  const status = document.getElementById('status');
+  const feed = document.getElementById('reel-feed');
+  const drawer = document.getElementById('comments-drawer');
+  document.getElementById('drawer-close').addEventListener('click', () => drawer.close());
+
+  // One shared drawer re-pointed at whichever slide's comment button was
+  // tapped — not one dialog per video.
+  let activeMediaId = null;
+  const thread = createCommentThread({
+    supabaseClient,
+    listEl: document.getElementById('comment-list'),
+    formEl: document.getElementById('comment-form'),
+    bodyInputEl: document.getElementById('comment-body'),
+    myId,
+    getMediaId: () => activeMediaId,
+    onCountChange: (count) => activeBarForCount?.setCommentCount(count),
+  });
+  let activeBarForCount = null;
+
+  const videos = await loadReelVideos(supabaseClient);
+  status.remove();
+  feed.hidden = false;
+
+  if (videos.length === 0) {
+    feed.hidden = true;
+    status.remove();
+    const empty = document.createElement('p');
+    empty.className = 'empty-state';
+    empty.textContent = 'No videos yet.';
+    document.querySelector('main').appendChild(empty);
+  }
+
+  // Global mute state — unmuting one video keeps the rest unmuted too,
+  // matching what people expect from this kind of feed.
+  let muted = true;
+
+  // Build every slide's video immediately (synchronous, no network wait) so
+  // the feed is scrollable and playable right away — action bars (each one
+  // needs 3 DB queries) get attached afterward in parallel, not one slide at
+  // a time. A sequential await-per-slide loop here made a 25-video reel take
+  // several seconds to even finish appearing, which defeats the point of a
+  // feed that's supposed to feel instant.
+  for (const item of videos) {
+    const slide = document.createElement('div');
+    slide.className = 'reel-slide';
+    slide.dataset.mediaId = item.id;
+
+    const video = document.createElement('video');
+    video.src = `${R2_PUBLIC_URL}/${item.r2_key}`;
+    video.poster = `${R2_PUBLIC_URL}/${item.thumb_key}`;
+    video.loop = true;
+    video.playsInline = true;
+    video.muted = muted;
+    slide.appendChild(video);
+
+    const muteBadge = document.createElement('div');
+    muteBadge.className = 'reel-mute-badge';
+    muteBadge.textContent = muted ? '🔇' : '🔊';
+    slide.appendChild(muteBadge);
+
+    slide.addEventListener('click', () => {
+      muted = !muted;
+      document.querySelectorAll('.reel-slide video').forEach((v) => { v.muted = muted; });
+      document.querySelectorAll('.reel-mute-badge').forEach((b) => { b.textContent = muted ? '🔇' : '🔊'; });
+    });
+
+    feed.appendChild(slide);
+  }
+
+  // Play the in-view video, pause everything else — wired up immediately,
+  // not after the action bars finish loading.
+  const observer = new IntersectionObserver((entries) => {
+    for (const entry of entries) {
+      const video = entry.target.querySelector('video');
+      if (entry.isIntersecting) video.play().catch(() => {});
+      else video.pause();
+    }
+  }, { threshold: 0.6 });
+
+  document.querySelectorAll('.reel-slide').forEach((slide) => observer.observe(slide));
+
+  // Now attach each slide's action bar, all in parallel rather than one at a
+  // time — the feed above is already scrollable/playable while this runs.
+  await Promise.all(videos.map(async (item) => {
+    const slide = feed.querySelector(`.reel-slide[data-media-id="${item.id}"]`);
+    const actionBar = await createActionBar({
+      supabaseClient, mediaId: item.id, userId: myId,
+      onOpenComments: () => {
+        activeMediaId = item.id;
+        activeBarForCount = actionBar;
+        thread.refresh();
+        drawer.showModal();
+      },
+    });
+    slide.appendChild(actionBar.element);
+  }));
+</script>

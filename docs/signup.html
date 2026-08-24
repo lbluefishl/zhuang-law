@@ -1,0 +1,86 @@
+<title>Join</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<link rel="stylesheet" href="css/style.css">
+
+<main>
+  <div class="lang-toggle" id="lang-toggle"></div>
+  <form class="login-form" id="signup-form">
+    <h1 data-i18n="signup.heading">Join Family Photos</h1>
+    <label for="invite-code" data-i18n="signup.invite_code_label">Invite code</label>
+    <input type="text" id="invite-code" autocomplete="off" required>
+
+    <label for="display-name" data-i18n="signup.name_label">Your name</label>
+    <input type="text" id="display-name" autocomplete="name" required>
+    <p class="field-hint" data-i18n="signup.name_hint">Shown next to your comments</p>
+
+    <label for="relationship" data-i18n="signup.relationship_label">How you're related (optional)</label>
+    <input type="text" id="relationship" data-i18n-placeholder="signup.relationship_placeholder" placeholder="e.g. Grandma, Uncle" autocomplete="off">
+
+    <label for="email" data-i18n="signup.email_label">Email</label>
+    <input type="email" id="email" autocomplete="username" required>
+    <p class="field-hint" data-i18n="signup.email_hint">For logging in on other devices</p>
+
+    <label for="pin" data-i18n="signup.pin_label">Choose a 6-digit PIN</label>
+    <input type="password" id="pin" class="pin-input" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" autocomplete="new-password" required>
+    <p class="field-hint" data-i18n="signup.pin_hint">Numbers only — something easy to remember</p>
+
+    <label for="confirm-pin" data-i18n="signup.confirm_pin_label">Confirm PIN</label>
+    <input type="password" id="confirm-pin" class="pin-input" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" autocomplete="new-password" required>
+
+    <p class="error-message" id="error-message" role="alert"></p>
+    <button type="submit" data-i18n="signup.submit">Create account</button>
+  </form>
+  <p style="text-align:center"><a href="index.html" data-i18n="signup.login_link">Already have an account? Sign in</a></p>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.0/dist/umd/supabase.js"></script>
+<script type="module">
+  import { supabaseClient } from './js/supabase-client.js';
+  import { initLanguageToggle, getStoredLanguage, loadDictionary } from './js/i18n.js';
+
+  await initLanguageToggle(document.getElementById('lang-toggle'));
+
+  const form = document.getElementById('signup-form');
+  const errorEl = document.getElementById('error-message');
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    errorEl.textContent = '';
+
+    const invite_code = document.getElementById('invite-code').value.trim();
+    const display_name = document.getElementById('display-name').value.trim();
+    const relationship = document.getElementById('relationship').value.trim() || null;
+    const email = document.getElementById('email').value;
+    const pin = document.getElementById('pin').value;
+    const confirmPin = document.getElementById('confirm-pin').value;
+    const preferred_language = getStoredLanguage();
+    const dict = await loadDictionary(preferred_language);
+
+    if (!/^\d{6}$/.test(pin)) {
+      errorEl.textContent = dict.signup.error_pin_format;
+      return;
+    }
+    if (pin !== confirmPin) {
+      errorEl.textContent = dict.signup.error_pin_mismatch;
+      return;
+    }
+
+    const { error } = await supabaseClient.auth.signUp({
+      email,
+      password: pin,
+      options: { data: { invite_code, display_name, relationship, preferred_language } },
+    });
+
+    if (error) {
+      // The hook's raw rejection message is English-only (it's server-side
+      // Postgres, not localized) — map the one we expect to the current
+      // language rather than leaking raw English into a Chinese/Cantonese page.
+      errorEl.textContent = error.message === 'Invalid invite code.'
+        ? dict.signup.error_invalid_code
+        : dict.signup.error_generic;
+      return;
+    }
+    window.location.href = 'gallery.html';
+  });
+</script>

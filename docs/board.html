@@ -1,0 +1,279 @@
+<title>Ashley's Birthday Board</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Caveat:wght@600&family=Pacifico&family=Quicksand:wght@600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+<link rel="stylesheet" href="css/board.css">
+
+<nav class="site-nav">
+  <a href="gallery.html">Gallery</a>
+  <a href="timeline.html">Timeline</a>
+  <a href="board.html" aria-current="page">Board</a>
+  <a href="reel.html">Reel</a>
+  <span class="spacer"></span>
+  <a href="settings.html" class="nav-secondary">Settings</a>
+  <button class="sign-out" data-sign-out>Sign out</button>
+</nav>
+
+<main class="board-page">
+  <p class="loading-state" id="status">Loading…</p>
+  <header class="board-header" id="board-header" hidden>
+    <h1 id="board-title"></h1>
+    <p id="board-subtitle"></p>
+  </header>
+
+  <div class="board-grid" id="board-grid" hidden></div>
+</main>
+
+<dialog id="compose-dialog">
+  <form id="compose-form">
+    <h2 id="dialog-heading">Add your message</h2>
+
+    <label for="message-body">Message</label>
+    <textarea id="message-body" maxlength="240" required></textarea>
+    <p class="field-hint" id="char-count"></p>
+
+    <label>Font</label>
+    <div class="swatch-row" id="font-row"></div>
+
+    <label>Color</label>
+    <div class="swatch-row" id="color-row"></div>
+
+    <label>Border</label>
+    <div class="swatch-row" id="border-row"></div>
+
+    <label>Sticker (optional)</label>
+    <div class="swatch-row" id="decoration-row"></div>
+
+    <label>Preview</label>
+    <div id="note-preview-wrap"></div>
+
+    <p class="error-message" id="compose-error"></p>
+
+    <div class="dialog-actions">
+      <button type="button" id="remove-btn" class="danger-link" hidden>Remove my message</button>
+      <span class="spacer"></span>
+      <button type="button" id="cancel-btn">Cancel</button>
+      <button type="submit">Save</button>
+    </div>
+  </form>
+</dialog>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.0/dist/umd/supabase.js"></script>
+<script type="module">
+  import { supabaseClient } from './js/supabase-client.js';
+  import { requireAuth, initSignOutButtons } from './js/auth-guard.js';
+  import {
+    FONTS, COLORS, BORDERS, DECORATIONS, MAX_MESSAGE_LENGTH,
+    loadBoard, loadMessages, upsertMyMessage, deleteMyMessage,
+  } from './js/board.js';
+
+  const BOARD_SLUG = 'ashley-birthday-2026';
+
+  const session = await requireAuth();
+  initSignOutButtons();
+  const myId = session.user.id;
+
+  const status = document.getElementById('status');
+  const header = document.getElementById('board-header');
+  const grid = document.getElementById('board-grid');
+  const dialog = document.getElementById('compose-dialog');
+  const composeForm = document.getElementById('compose-form');
+
+  let board, messages, myMessage;
+
+  function noteStyle(font, colorKey, borderStyle) {
+    const bg = COLORS[colorKey] || COLORS.yellow;
+    return {
+      fontFamily: FONTS[font]?.family || 'inherit',
+      background: bg,
+      borderStyle: borderStyle === 'tape' ? 'none' : (borderStyle === 'none' ? 'none' : borderStyle),
+    };
+  }
+
+  function renderNote(container, msg, { mine }) {
+    const note = document.createElement('div');
+    note.className = `note note-border-${msg.border_style}`;
+    const style = noteStyle(msg.font, msg.note_color, msg.border_style);
+    note.style.fontFamily = style.fontFamily;
+    note.style.background = style.background;
+    if (msg.border_style !== 'none' && msg.border_style !== 'tape') note.style.borderStyle = style.borderStyle;
+
+    if (msg.decoration) {
+      const deco = document.createElement('span');
+      deco.className = 'note-decoration';
+      deco.textContent = msg.decoration;
+      note.appendChild(deco);
+    }
+    if (msg.border_style === 'tape') {
+      const tape = document.createElement('span');
+      tape.className = 'note-tape';
+      note.appendChild(tape);
+    }
+
+    const body = document.createElement('p');
+    body.className = 'note-body';
+    body.textContent = msg.body;
+    note.appendChild(body);
+
+    const sig = document.createElement('p');
+    sig.className = 'note-signature';
+    sig.textContent = `— ${msg.profiles?.display_name ?? 'Someone'}`;
+    note.appendChild(sig);
+
+    if (mine) {
+      note.classList.add('note-mine');
+      note.title = 'Tap to edit your message';
+      note.addEventListener('click', () => openCompose(msg.slot_index, msg));
+    }
+    container.appendChild(note);
+  }
+
+  async function render() {
+    board = await loadBoard(supabaseClient, BOARD_SLUG);
+    messages = await loadMessages(supabaseClient, board.id);
+    myMessage = messages.find((m) => m.user_id === myId) || null;
+
+    document.getElementById('board-title').textContent = board.title;
+    document.getElementById('board-subtitle').textContent = board.subtitle || '';
+    header.hidden = false;
+    status.remove?.();
+    grid.hidden = false;
+    grid.innerHTML = '';
+
+    const bySlot = new Map(messages.map((m) => [m.slot_index, m]));
+    for (let i = 0; i < board.slot_count; i++) {
+      const slotEl = document.createElement('div');
+      slotEl.className = 'board-slot';
+      const msg = bySlot.get(i);
+      if (msg) {
+        renderNote(slotEl, msg, { mine: msg.user_id === myId });
+      } else if (!myMessage) {
+        const empty = document.createElement('button');
+        empty.type = 'button';
+        empty.className = 'board-slot-empty';
+        empty.textContent = '+';
+        empty.setAttribute('aria-label', 'Add your message here');
+        empty.addEventListener('click', () => openCompose(i, null));
+        slotEl.appendChild(empty);
+      }
+      grid.appendChild(slotEl);
+    }
+  }
+
+  // --- Compose dialog ---
+  let composeSlot = null;
+  let composeState = { font: 'default', color: 'yellow', border: 'solid', decoration: '' };
+
+  function buildSwatchRow(rowEl, options, currentKey, render, onPick) {
+    rowEl.innerHTML = '';
+    for (const key of options) {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'swatch';
+      if (key === currentKey) btn.classList.add('swatch-selected');
+      render(btn, key);
+      btn.addEventListener('click', () => {
+        rowEl.querySelectorAll('.swatch').forEach((b) => b.classList.remove('swatch-selected'));
+        btn.classList.add('swatch-selected');
+        onPick(key);
+        updatePreview();
+      });
+      rowEl.appendChild(btn);
+    }
+  }
+
+  function updatePreview() {
+    const wrap = document.getElementById('note-preview-wrap');
+    wrap.innerHTML = '';
+    renderNote(wrap, {
+      body: document.getElementById('message-body').value || 'Your message will look like this!',
+      font: composeState.font,
+      note_color: composeState.color,
+      border_style: composeState.border,
+      decoration: composeState.decoration,
+      profiles: { display_name: 'You' },
+      user_id: null,
+    }, { mine: false });
+  }
+
+  function openCompose(slotIndex, existing) {
+    composeSlot = slotIndex;
+    composeState = existing
+      ? { font: existing.font, color: existing.note_color, border: existing.border_style, decoration: existing.decoration || '' }
+      : { font: 'default', color: 'yellow', border: 'solid', decoration: '' };
+
+    document.getElementById('dialog-heading').textContent = existing ? 'Edit your message' : 'Add your message';
+    document.getElementById('message-body').value = existing?.body || '';
+    document.getElementById('char-count').textContent = `${(existing?.body || '').length} / ${MAX_MESSAGE_LENGTH}`;
+    document.getElementById('remove-btn').hidden = !existing;
+    document.getElementById('compose-error').textContent = '';
+
+    buildSwatchRow(document.getElementById('font-row'), Object.keys(FONTS), composeState.font, (btn, key) => {
+      btn.textContent = FONTS[key].label;
+      btn.style.fontFamily = FONTS[key].family;
+    }, (key) => { composeState.font = key; });
+
+    buildSwatchRow(document.getElementById('color-row'), Object.keys(COLORS), composeState.color, (btn, key) => {
+      btn.style.background = COLORS[key];
+    }, (key) => { composeState.color = key; });
+
+    buildSwatchRow(document.getElementById('border-row'), BORDERS, composeState.border, (btn, key) => {
+      btn.textContent = key;
+    }, (key) => { composeState.border = key; });
+
+    buildSwatchRow(document.getElementById('decoration-row'), DECORATIONS, composeState.decoration, (btn, key) => {
+      btn.textContent = key || '—';
+    }, (key) => { composeState.decoration = key; });
+
+    updatePreview();
+    dialog.showModal();
+  }
+
+  document.getElementById('message-body').addEventListener('input', (e) => {
+    document.getElementById('char-count').textContent = `${e.target.value.length} / ${MAX_MESSAGE_LENGTH}`;
+    updatePreview();
+  });
+
+  document.getElementById('cancel-btn').addEventListener('click', () => dialog.close());
+
+  document.getElementById('remove-btn').addEventListener('click', async () => {
+    if (!myMessage || !confirm('Remove your message from the board?')) return;
+    await deleteMyMessage(supabaseClient, myMessage.id);
+    dialog.close();
+    await render();
+  });
+
+  composeForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const errorEl = document.getElementById('compose-error');
+    errorEl.textContent = '';
+    const body = document.getElementById('message-body').value.trim();
+    if (!body) return;
+
+    try {
+      await upsertMyMessage(supabaseClient, {
+        boardId: board.id,
+        userId: myId,
+        existingId: myMessage?.id || null,
+        slotIndex: composeSlot,
+        body,
+        font: composeState.font,
+        noteColor: composeState.color,
+        borderStyle: composeState.border,
+        decoration: composeState.decoration,
+      });
+      dialog.close();
+      await render();
+    } catch (err) {
+      errorEl.textContent = err.message === 'SLOT_TAKEN'
+        ? 'Someone just took that spot — pick another.'
+        : 'Could not save — please try again.';
+      if (err.message === 'SLOT_TAKEN') { dialog.close(); await render(); }
+    }
+  });
+
+  await render();
+</script>

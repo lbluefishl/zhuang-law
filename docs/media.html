@@ -1,0 +1,181 @@
+<title>Photo</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<link rel="stylesheet" href="css/style.css">
+<link rel="stylesheet" href="css/viewer.css">
+
+<nav class="site-nav">
+  <a href="gallery.html">Gallery</a>
+  <a href="timeline.html">Timeline</a>
+  <a href="board.html">Board</a>
+  <a href="reel.html">Reel</a>
+  <span class="spacer"></span>
+  <a href="settings.html" class="nav-secondary">Settings</a>
+  <button class="sign-out" data-sign-out>Sign out</button>
+</nav>
+
+<main>
+  <div class="viewer-stage" id="stage">
+    <a class="viewer-back-link" id="back-link">← Gallery</a>
+    <p class="loading-state" id="status">Loading…</p>
+  </div>
+</main>
+
+<dialog id="comments-drawer">
+  <div class="drawer-header">
+    <h2>Comments</h2>
+    <button class="drawer-close" type="button" id="drawer-close">✕</button>
+  </div>
+  <div class="drawer-body">
+    <form class="comment-form" id="comment-form">
+      <textarea id="comment-body" placeholder="Add a comment…" required></textarea>
+      <button type="submit">Post</button>
+    </form>
+    <div id="comment-list"></div>
+  </div>
+</dialog>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.0/dist/umd/supabase.js"></script>
+<script type="module">
+  import { supabaseClient, R2_PUBLIC_URL } from './js/supabase-client.js';
+  import { requireAuth, initSignOutButtons } from './js/auth-guard.js';
+  import { createActionBar } from './js/action-bar.js';
+  import { createCommentThread } from './js/comment-thread.js';
+  import { loadOrderedIds } from './js/media-nav.js';
+
+  const session = await requireAuth();
+  initSignOutButtons();
+  const myId = session.user.id;
+
+  const stage = document.getElementById('stage');
+  const status = document.getElementById('status');
+  const drawer = document.getElementById('comments-drawer');
+
+  document.getElementById('drawer-close').addEventListener('click', () => drawer.close());
+
+  const params = new URLSearchParams(window.location.search);
+  const mediaId = params.get('id');
+  const from = params.get('from') === 'timeline' ? 'timeline' : 'gallery';
+
+  // A real link back to wherever this was opened from, not history.back() —
+  // predictable regardless of how many Prev/Next hops happened in between,
+  // and always visible (unlike Prev/Next, which are pointer-only — see below).
+  // scrollTo carries the current item so the grid can scroll back to where
+  // it actually was, instead of resetting to the top.
+  const backLink = document.getElementById('back-link');
+  backLink.href = mediaId ? `${from}.html?scrollTo=${mediaId}` : `${from}.html`;
+  backLink.textContent = from === 'timeline' ? '← Timeline' : '← Gallery';
+
+  if (!mediaId) {
+    status.textContent = 'No photo specified.';
+  } else {
+    // Kicked off immediately, in parallel with everything else below — this
+    // used to run only after the image, action bar, AND comments had all
+    // finished loading, which made Prev/Next visibly lag in.
+    const orderedIdsPromise = loadOrderedIds(supabaseClient, from).catch(() => []);
+
+    const { data: item, error } = await supabaseClient
+      .from('media')
+      .select('r2_key, thumb_key, media_type, width, height, date_taken')
+      .eq('id', mediaId)
+      .single();
+
+    if (error || !item) {
+      status.textContent = 'Could not find that photo.';
+    } else {
+      status.remove();
+
+      // Fire-and-forget — a real open of the detail page counts as a view,
+      // not just the thumbnail appearing in a grid. Doesn't block rendering.
+      // supabase-js's query builder is a LAZY thenable, not a real Promise —
+      // it only implements .then(), not .catch()/.finally(), and the actual
+      // request is never sent until something calls .then() on it (or it's
+      // awaited). Calling .catch() here threw a *synchronous* TypeError
+      // ("...catch is not a function") that silently killed the rest of this
+      // script — including the image/video that was supposed to render —
+      // since it's not inside a try/catch. .then()'s two-argument form is
+      // the correct way to fire-and-forget one of these.
+      supabaseClient.rpc('increment_view_count', { target_media_id: mediaId }).then(() => {}, () => {});
+
+      if (item.media_type === 'video') {
+        const video = document.createElement('video');
+        video.src = `${R2_PUBLIC_URL}/${item.r2_key}`;
+        video.poster = `${R2_PUBLIC_URL}/${item.thumb_key}`;
+        video.controls = true;
+        video.playsInline = true;
+        stage.appendChild(video);
+      } else {
+        const img = document.createElement('img');
+        img.src = `${R2_PUBLIC_URL}/${item.r2_key}`;
+        img.alt = '';
+        stage.appendChild(img);
+      }
+
+      const meta = document.createElement('p');
+      meta.className = 'viewer-meta';
+      meta.textContent = new Date(item.date_taken).toLocaleDateString(undefined, {
+        year: 'numeric', month: 'long', day: 'numeric',
+      });
+      stage.appendChild(meta);
+
+      // Prev/Next buttons (pointer devices only — CSS hides them under
+      // touch, see viewer.css) and swipe navigation (touch devices — the
+      // buttons wouldn't be reachable there anyway, and swiping is the
+      // expected gesture) both come from the same ordered-list lookup.
+      // Doesn't wait on the action bar or comments below it.
+      orderedIdsPromise.then((orderedIds) => {
+        const currentIndex = orderedIds.indexOf(mediaId);
+        const prevId = currentIndex > 0 ? orderedIds[currentIndex - 1] : undefined;
+        const nextId = currentIndex !== -1 ? orderedIds[currentIndex + 1] : undefined;
+
+        const navGroup = document.createElement('div');
+        navGroup.className = 'viewer-nav-group';
+        if (prevId) {
+          const prevLink = document.createElement('a');
+          prevLink.className = 'viewer-prev-link';
+          prevLink.href = `media.html?id=${prevId}&from=${from}`;
+          prevLink.textContent = '‹ Prev';
+          navGroup.appendChild(prevLink);
+        }
+        if (nextId) {
+          const nextLink = document.createElement('a');
+          nextLink.className = 'viewer-next-link';
+          nextLink.href = `media.html?id=${nextId}&from=${from}`;
+          nextLink.textContent = 'Next ›';
+          navGroup.appendChild(nextLink);
+        }
+        stage.appendChild(navGroup);
+
+        // Swipe left -> next, swipe right -> previous.
+        let touchStartX = null;
+        stage.addEventListener('touchstart', (e) => { touchStartX = e.touches[0].clientX; }, { passive: true });
+        stage.addEventListener('touchend', (e) => {
+          if (touchStartX === null) return;
+          const dx = e.changedTouches[0].clientX - touchStartX;
+          const SWIPE_THRESHOLD = 50;
+          if (dx < -SWIPE_THRESHOLD && nextId) window.location.href = `media.html?id=${nextId}&from=${from}`;
+          else if (dx > SWIPE_THRESHOLD && prevId) window.location.href = `media.html?id=${prevId}&from=${from}`;
+          touchStartX = null;
+        });
+      });
+
+      const actionBar = await createActionBar({
+        supabaseClient, mediaId, userId: myId,
+        onOpenComments: () => drawer.showModal(),
+      });
+      stage.appendChild(actionBar.element);
+
+      const thread = createCommentThread({
+        supabaseClient,
+        listEl: document.getElementById('comment-list'),
+        formEl: document.getElementById('comment-form'),
+        bodyInputEl: document.getElementById('comment-body'),
+        myId,
+        getMediaId: () => mediaId,
+        onCountChange: actionBar.setCommentCount,
+      });
+
+      await thread.refresh();
+    }
+  }
+</script>

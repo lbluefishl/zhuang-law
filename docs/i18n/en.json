@@ -1,0 +1,32 @@
+{
+  "login": {
+    "title": "Sign in",
+    "heading": "Family Photos",
+    "email_label": "Email",
+    "pin_label": "PIN",
+    "submit": "Sign in",
+    "error": "Could not sign in — check your email and PIN.",
+    "join_link": "Have an invite code? Join"
+  },
+  "signup": {
+    "title": "Join",
+    "heading": "Join Family Photos",
+    "invite_code_label": "Invite code",
+    "name_label": "Your name",
+    "name_hint": "Shown next to your comments",
+    "relationship_label": "How you're related (optional)",
+    "relationship_placeholder": "e.g. Grandma, Uncle",
+    "email_label": "Email",
+    "email_hint": "For logging in on other devices",
+    "pin_label": "Choose a 6-digit PIN",
+    "pin_hint": "Numbers only — something easy to remember",
+    "confirm_pin_label": "Confirm PIN",
+    "submit": "Create account",
+    "login_link": "Already have an account? Sign in",
+    "error_invalid_code": "That invite code isn't right — check with whoever invited you.",
+    "error_pin_mismatch": "Those two PINs don't match.",
+    "error_pin_format": "PIN must be exactly 6 numbers.",
+    "error_generic": "Something went wrong — please try again."
+  },
+  "language_name": "English"
+}

@@ -1,0 +1,229 @@
+/* Shared between media.html and reel.html — the TikTok-style right-side
+   action column and the comment drawer it opens.
+
+   The stage fills whatever's left below the nav via flexbox, not a
+   calc(100dvh - <hardcoded nav height>) — the nav's actual rendered height
+   didn't match an assumed constant here, causing real overflow. This way it
+   can't drift out of sync regardless of how the nav's own size changes. */
+body:has(.viewer-stage), body:has(.reel-feed) {
+  height: 100dvh;
+  /* margin-block only — the base body rule centers the page horizontally via
+     margin-inline: auto (style.css); a plain `margin: 0` here was resetting
+     that too, pinning the page to the left edge on any viewport wider than
+     the 720px content cap instead of keeping it centered. */
+  margin-block: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+body:has(.viewer-stage) main, body:has(.reel-feed) main {
+  flex: 1;
+  min-height: 0;
+  padding: 0; /* full-bleed video, not the site's usual 16px content padding */
+  display: flex;
+  flex-direction: column;
+}
+
+.viewer-stage {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #000;
+}
+
+.viewer-stage img, .viewer-stage video {
+  max-width: 100%;
+  max-height: 100%;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+}
+
+.viewer-back-link, .viewer-prev-link, .viewer-next-link {
+  min-height: var(--tap-min);
+  display: flex;
+  align-items: center;
+  padding: 0 14px;
+  border: none;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.45);
+  color: #fff;
+  /* <button> (the old Back) doesn't inherit the page font by default the way
+     <a> does — browsers apply their own form-control font to buttons unless
+     told otherwise. Kept explicit now that Back is an <a> too, in case that
+     ever changes back. */
+  font-family: inherit;
+  font-size: 1rem;
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+/* Always visible, on every device — this is the only reliable way back to
+   the grid once Prev/Next hops have happened a few times (history.back()
+   isn't predictable at that point). */
+.viewer-back-link {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  z-index: 5;
+}
+
+/* Prev/Next, by contrast, are pointer-device-only — on touch, swiping left/
+   right (wired up in media.html) does this instead, so the buttons would
+   just be redundant screen space on a phone. */
+.viewer-nav-group {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 5;
+  display: none;
+  gap: 8px;
+}
+
+@media (hover: hover) {
+  .viewer-nav-group { display: flex; }
+
+  /* Going darker (0.45 -> 0.65 alpha, both still black) barely reads as a
+     change against an already-dark photo corner — going lighter instead
+     gives real contrast regardless of what's behind the button. */
+  .viewer-back-link:hover, .viewer-prev-link:hover, .viewer-next-link:hover { background: rgba(255, 255, 255, 0.3); }
+  .action-btn:hover .action-icon { filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.5)) brightness(1.15); }
+}
+
+.viewer-meta {
+  position: absolute;
+  left: 10px;
+  bottom: 12px;
+  z-index: 5;
+  max-width: 70%;
+  color: #fff;
+  font-size: 0.85rem;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
+}
+
+/* Right-side action column */
+.action-bar {
+  position: absolute;
+  right: 10px;
+  bottom: 16px;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 18px;
+}
+
+.action-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  min-width: 48px;
+  min-height: 48px;
+  border: none;
+  background: none;
+  color: #fff;
+  cursor: pointer;
+}
+
+.action-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.9rem; /* only matters if a text/emoji icon is ever used again */
+  filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.5));
+  line-height: 1;
+}
+
+/* .action-bar qualifier, not just .icon-img alone — needs to outrank
+   ".viewer-stage img" (the rule sizing the actual photo/video) in
+   specificity, since these icons are ALSO nested inside .viewer-stage and
+   were otherwise being sized as if they were the main photo (~370px instead
+   of 26px). */
+.action-bar .icon-img {
+  width: 26px;
+  height: 26px;
+  display: block;
+}
+
+/* Recolors any opaque pixel in the source art to solid white, transparency
+   untouched — reads against the dark video backdrop the same way the rest
+   of the action bar does. NOT a plain invert(1): chat.png's fill is opaque
+   white (not transparent like heart.png's), so a bare invert turned that
+   white fill black instead of leaving a clean white silhouette. brightness(0)
+   flattens every opaque pixel to black regardless of its original color
+   first, THEN invert(1) makes it white — correct for both icons uniformly.
+   redheart.png (already red) and the favorite star SVG don't use this. */
+.action-bar .icon-img-outline { filter: brightness(0) invert(1); }
+
+.action-btn.action-active .action-icon { color: var(--accent); }
+
+@keyframes icon-bounce {
+  0% { transform: scale(1) translateY(0); }
+  30% { transform: scale(1.35) translateY(-6px); }
+  55% { transform: scale(0.92) translateY(0); }
+  100% { transform: scale(1) translateY(0); }
+}
+
+.icon-bounce { animation: icon-bounce 0.35s ease; }
+
+.action-count {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+}
+
+/* Reserves the same height a real count line would take, so the favorite
+   button (which has no count to show) still lines its icon up with
+   heart/comment instead of floating higher than them. Explicit height, not
+   relying on whitespace text content to hold a line open. */
+.action-count-spacer {
+  visibility: hidden;
+  height: calc(0.75rem * 1.2);
+}
+
+/* Comment drawer */
+dialog#comments-drawer {
+  margin: auto auto 0;
+  width: min(720px, 100%);
+  max-height: 75dvh;
+  border: none;
+  border-radius: 16px 16px 0 0;
+  padding: 0;
+}
+
+dialog#comments-drawer::backdrop { background: rgba(0, 0, 0, 0.4); }
+
+@keyframes drawer-wipe-up {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+
+dialog#comments-drawer[open] { animation: drawer-wipe-up 0.22s ease-out; }
+
+.drawer-header {
+  display: flex;
+  align-items: center;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.drawer-header h2 { font-size: 1.05rem; margin: 0; flex: 1; }
+
+.drawer-close {
+  min-height: 36px;
+  min-width: 36px;
+  border: none;
+  background: none;
+  font-size: 1.2rem;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.drawer-body { padding: 12px 16px 16px; overflow-y: auto; max-height: calc(75dvh - 58px); }

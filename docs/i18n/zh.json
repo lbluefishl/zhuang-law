@@ -1,0 +1,32 @@
+{
+  "login": {
+    "title": "登录",
+    "heading": "家庭相册",
+    "email_label": "电子邮箱",
+    "pin_label": "PIN码",
+    "submit": "登录",
+    "error": "登录失败,请检查邮箱和PIN码是否正确。",
+    "join_link": "有邀请码?点击加入"
+  },
+  "signup": {
+    "title": "加入",
+    "heading": "加入家庭相册",
+    "invite_code_label": "邀请码",
+    "name_label": "你的名字",
+    "name_hint": "会显示在你的留言旁边",
+    "relationship_label": "与宝宝的关系(选填)",
+    "relationship_placeholder": "例如:奶奶、叔叔",
+    "email_label": "电子邮箱",
+    "email_hint": "用于在其他设备上登录",
+    "pin_label": "设置6位数字PIN码",
+    "pin_hint": "只能是数字,选一个容易记住的",
+    "confirm_pin_label": "确认PIN码",
+    "submit": "创建账户",
+    "login_link": "已有账户?点击登录",
+    "error_invalid_code": "邀请码不正确,请向邀请你的人确认。",
+    "error_pin_mismatch": "两次输入的PIN码不一致。",
+    "error_pin_format": "PIN码必须是6位数字。",
+    "error_generic": "出了点问题,请重试。"
+  },
+  "language_name": "中文"
+}
