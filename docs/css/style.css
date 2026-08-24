@@ -510,7 +510,12 @@ h1 { font-size: 1.3rem; margin: 0 0 16px; }
 
 .settings-form label { font-weight: 600; font-size: 0.9rem; }
 
-.settings-form input:not(.pin-input), .settings-form select {
+/* #avatar-input excluded here — a file input isn't a text field, and giving
+   it this same bordered/padded box put its own ::file-selector-button (below)
+   inset inside a second layer of padding, reading as a stray indent with the
+   "no file chosen" text crowded up against it. It gets its own plain reset
+   instead, just below. */
+.settings-form input:not(.pin-input):not(#avatar-input), .settings-form select {
   min-height: var(--tap-min);
   padding: 0 12px;
   font-size: 1rem;
@@ -568,9 +573,21 @@ h1 { font-size: 1.3rem; margin: 0 0 16px; }
   cursor: pointer;
 }
 
+/* The input's own box is a plain reset (no border/padding/background — see
+   the excluded selector above), so only its ::file-selector-button below and
+   the native "no file chosen" text actually show, sitting flush with the
+   rest of the row instead of inset inside an extra text-field-style box. */
+#avatar-input {
+  min-height: auto;
+  padding: 0;
+  border: none;
+  background: none;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
 /* The file input's native "Browse"/"Choose File" button, styled to match
-   the rest of the settings buttons instead of raw browser chrome. Widely
-   supported in current browsers; the input itself is left otherwise plain. */
+   the rest of the settings buttons instead of raw browser chrome. */
 #avatar-input::file-selector-button {
   min-height: var(--tap-min);
   padding: 0 16px;

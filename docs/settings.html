@@ -26,7 +26,7 @@
       </div>
 
       <label for="display-name" data-i18n="settings.display_name_label">Display name</label>
-      <input id="display-name" required>
+      <input id="display-name">
 
       <label for="relationship" data-i18n="settings.relationship_label">How you're related</label>
       <input id="relationship" data-i18n-placeholder="settings.relationship_placeholder" placeholder="e.g. Grandma, Uncle">
@@ -135,10 +135,14 @@
     setFormMessage(messageEl, '');
 
     const fields = {
-      display_name: document.getElementById('display-name').value.trim(),
       relationship: document.getElementById('relationship').value.trim() || null,
       preferred_language: document.getElementById('language').value,
     };
+    // Left blank = "don't change it", not "clear it" — display_name is
+    // NOT NULL in the schema, and blanking someone's name out just because
+    // they only meant to change their language would be a real data loss.
+    const displayNameValue = document.getElementById('display-name').value.trim();
+    if (displayNameValue) fields.display_name = displayNameValue;
     if (pendingAvatarDataUrl !== undefined) fields.avatar_data_url = pendingAvatarDataUrl;
 
     try {
