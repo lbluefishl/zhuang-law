@@ -17,5 +17,13 @@ export async function uploadToR2(client, key, body, contentType) {
     Key: key,
     Body: body,
     ContentType: contentType,
+    // Every key is a fresh UUID (index.js) — nothing already uploaded is
+    // ever overwritten in place, so "cache this forever" is always safe,
+    // not just usually. Without this, browsers fall back to heuristic
+    // caching (roughly 10% of the file's age since Last-Modified), which is
+    // far shorter than it needs to be for content that provably never
+    // changes — a relative reopening the site later re-downloads photos
+    // they already viewed instead of getting them instantly from cache.
+    CacheControl: 'public, max-age=31536000, immutable',
   }));
 }

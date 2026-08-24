@@ -42,7 +42,7 @@
   import { requireAuth, initSignOutButtons } from './js/auth-guard.js';
   import { createActionBar } from './js/action-bar.js';
   import { createCommentThread } from './js/comment-thread.js';
-  import { loadOrderedIds } from './js/media-nav.js';
+  import { loadOrderedItems } from './js/media-nav.js';
   import { applyStoredLanguage, syncLanguageFromProfile, t } from './js/i18n.js';
 
   const session = await requireAuth();
@@ -76,7 +76,7 @@
     // Kicked off immediately, in parallel with everything else below — this
     // used to run only after the image, action bar, AND comments had all
     // finished loading, which made Prev/Next visibly lag in.
-    const orderedIdsPromise = loadOrderedIds(supabaseClient, from).catch(() => []);
+    const orderedItemsPromise = loadOrderedItems(supabaseClient, from).catch(() => []);
 
     const { data: item, error } = await supabaseClient
       .from('media')
@@ -127,10 +127,30 @@
       // buttons wouldn't be reachable there anyway, and swiping is the
       // expected gesture) both come from the same ordered-list lookup.
       // Doesn't wait on the action bar or comments below it.
-      orderedIdsPromise.then((orderedIds) => {
-        const currentIndex = orderedIds.indexOf(mediaId);
-        const prevId = currentIndex > 0 ? orderedIds[currentIndex - 1] : undefined;
-        const nextId = currentIndex !== -1 ? orderedIds[currentIndex + 1] : undefined;
+      orderedItemsPromise.then((orderedItems) => {
+        const currentIndex = orderedItems.findIndex((m) => m.id === mediaId);
+        const prevItem = currentIndex > 0 ? orderedItems[currentIndex - 1] : undefined;
+        const nextItem = currentIndex !== -1 ? orderedItems[currentIndex + 1] : undefined;
+        const prevId = prevItem?.id;
+        const nextId = nextItem?.id;
+
+        // TikTok-style: warm the browser's HTTP cache for whichever item(s)
+        // are one tap/swipe away, so Prev/Next feels closer to instant
+        // instead of starting a multi-MB download from a standing start.
+        // Skipped entirely on Data Saver / a known-slow connection — the
+        // Network Information API isn't in Safari, so this is a progressive
+        // enhancement, not something every visitor gets.
+        const conn = navigator.connection;
+        const skipPrefetch = conn && (conn.saveData || ['slow-2g', '2g'].includes(conn.effectiveType));
+        if (!skipPrefetch) {
+          for (const neighbor of [nextItem, prevItem]) {
+            if (!neighbor) continue;
+            const link = document.createElement('link');
+            link.rel = 'prefetch';
+            link.href = `${R2_PUBLIC_URL}/${neighbor.r2_key}`;
+            document.head.appendChild(link);
+          }
+        }
 
         const navGroup = document.createElement('div');
         navGroup.className = 'viewer-nav-group';

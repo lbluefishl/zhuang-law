@@ -1,0 +1,168 @@
+<title>Comments — Admin</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<link rel="stylesheet" href="css/style.css">
+<link rel="stylesheet" href="css/admin.css">
+
+<nav class="site-nav">
+  <a href="gallery.html" data-i18n="nav.gallery">Gallery</a>
+  <a href="timeline.html" data-i18n="nav.timeline">Timeline</a>
+  <a href="board.html" data-i18n="nav.board">Board</a>
+  <a href="reel.html" data-i18n="nav.reel">Reel</a>
+  <a href="cats.html" data-i18n="nav.cats">Fiyero &amp; Satine</a>
+  <span class="spacer"></span>
+  <a href="settings.html" class="nav-secondary" data-i18n="nav.settings">Settings</a>
+  <button class="sign-out" data-sign-out data-i18n="nav.sign_out">Sign out</button>
+</nav>
+
+<main>
+  <h1 data-i18n="admin.title">Comments</h1>
+  <p class="loading-state" id="status" data-i18n="admin.loading">Loading…</p>
+  <div id="comment-list"></div>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.0/dist/umd/supabase.js"></script>
+<script type="module">
+  import { supabaseClient, R2_PUBLIC_URL } from './js/supabase-client.js';
+  import { requireAuth, initSignOutButtons } from './js/auth-guard.js';
+  import { loadAllComments, softDeleteComment } from './js/comments.js';
+  import { createAvatarElement } from './js/avatar.js';
+  import { applyStoredLanguage, syncLanguageFromProfile, t } from './js/i18n.js';
+
+  const LAST_SEEN_KEY = 'admin_comments_last_seen';
+
+  const session = await requireAuth();
+  initSignOutButtons();
+  const myId = session.user.id;
+  await syncLanguageFromProfile(supabaseClient, myId);
+  const dict = await applyStoredLanguage();
+
+  const status = document.getElementById('status');
+  const listEl = document.getElementById('comment-list');
+
+  // Page-level gate, not an RLS one — comments_select already lets any
+  // authenticated user read every comment (needed for the normal comment
+  // threads to work at all), so this is what actually keeps regular
+  // relatives from landing here, not the database. No admin-restricted
+  // query exists (or is needed) beyond this check.
+  const { data: myProfile, error: profileError } = await supabaseClient
+    .from('profiles').select('is_admin').eq('id', myId).single();
+  if (profileError || !myProfile?.is_admin) {
+    window.location.href = 'gallery.html';
+    throw new Error('Not an admin — redirected.');
+  }
+
+  // First-ever visit: nothing is flagged "new" (there's no real baseline
+  // yet to compare against) — only comments posted after this visit will
+  // start showing the badge on the next one.
+  let lastSeen = null;
+  try {
+    const raw = localStorage.getItem(LAST_SEEN_KEY);
+    if (raw) lastSeen = new Date(raw);
+  } catch {
+    // private browsing / storage blocked — just skip the "new" badge feature
+  }
+
+  let comments;
+  try {
+    comments = await loadAllComments(supabaseClient);
+  } catch (err) {
+    status.textContent = t(dict, 'admin.error');
+    throw err;
+  }
+
+  status.remove();
+
+  if (comments.length === 0) {
+    const empty = document.createElement('p');
+    empty.className = 'empty-state';
+    empty.textContent = t(dict, 'admin.empty');
+    listEl.appendChild(empty);
+  }
+
+  function formatDateTime(iso) {
+    return new Date(iso).toLocaleString(undefined, {
+      month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',
+    });
+  }
+
+  for (const c of comments) {
+    const row = document.createElement('div');
+    row.className = 'comment admin-comment';
+
+    const thumb = document.createElement('a');
+    thumb.className = 'admin-comment-thumb';
+    thumb.href = `media.html?id=${c.media_id}`;
+    if (c.media?.thumb_key) {
+      const img = document.createElement('img');
+      img.src = `${R2_PUBLIC_URL}/${c.media.thumb_key}`;
+      img.alt = '';
+      thumb.appendChild(img);
+    }
+    row.appendChild(thumb);
+
+    row.appendChild(createAvatarElement(c.profiles?.display_name, c.profiles?.avatar_data_url, 'avatar-sm'));
+
+    const content = document.createElement('div');
+    content.className = 'comment-content';
+
+    const authorLine = document.createElement('div');
+    authorLine.className = 'comment-author';
+    if (lastSeen && new Date(c.created_at) > lastSeen) {
+      const badge = document.createElement('span');
+      badge.className = 'admin-new-badge';
+      badge.textContent = t(dict, 'admin.new_badge');
+      authorLine.appendChild(badge);
+      authorLine.append(' ');
+    }
+    const relationship = c.profiles?.relationship ? ` (${c.profiles.relationship})` : '';
+    authorLine.append(`${c.profiles?.display_name ?? t(dict, 'comments.someone')}${relationship} · ${formatDateTime(c.created_at)}`);
+    if (c.parent_comment_id) {
+      const replyTag = document.createElement('span');
+      replyTag.className = 'admin-reply-tag';
+      replyTag.textContent = ` · ${t(dict, 'admin.reply_tag')}`;
+      authorLine.appendChild(replyTag);
+    }
+    content.appendChild(authorLine);
+
+    const body = document.createElement('p');
+    body.className = 'comment-body';
+    body.textContent = c.body; // the commenter's own words — never translated
+    content.appendChild(body);
+
+    const actions = document.createElement('div');
+    actions.className = 'comment-actions';
+
+    const viewLink = document.createElement('a');
+    viewLink.href = `media.html?id=${c.media_id}`;
+    viewLink.textContent = t(dict, 'admin.view_photo');
+    actions.appendChild(viewLink);
+
+    const deleteBtn = document.createElement('button');
+    deleteBtn.type = 'button';
+    deleteBtn.textContent = t(dict, 'comments.delete');
+    deleteBtn.addEventListener('click', async () => {
+      if (!confirm(t(dict, 'comments.confirm_delete'))) return;
+      await softDeleteComment(supabaseClient, c.id);
+      row.remove();
+      if (!listEl.children.length) {
+        const empty = document.createElement('p');
+        empty.className = 'empty-state';
+        empty.textContent = t(dict, 'admin.empty');
+        listEl.appendChild(empty);
+      }
+    });
+    actions.appendChild(deleteBtn);
+
+    content.appendChild(actions);
+    row.appendChild(content);
+    listEl.appendChild(row);
+  }
+
+  try {
+    localStorage.setItem(LAST_SEEN_KEY, new Date().toISOString());
+  } catch {
+    // private browsing / storage blocked — next visit just won't have a
+    // baseline either, same as this one didn't
+  }
+</script>

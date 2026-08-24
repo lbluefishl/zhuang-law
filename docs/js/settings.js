@@ -1,4 +1,4 @@
-const AVATAR_SIZE = 128; // px, square — deliberately small (see schema.sql)
+export const AVATAR_SIZE = 128; // px, square — deliberately small (see schema.sql)
 
 export async function loadProfile(supabaseClient, userId) {
   const { data, error } = await supabaseClient.from('profiles').select('*').eq('id', userId).single();
@@ -38,10 +38,13 @@ export async function deleteMyAccount(supabaseClient) {
   if (error) throw error;
 }
 
-// Resizes/crops the image to a small square JPEG and returns it as a data URI
-// — no upload endpoint involved, this is the value stored directly in
-// profiles.avatar_data_url.
-export function resizeImageToDataUrl(file) {
+// Validates + decodes a chosen file into an <img>, ready to hand to
+// avatar-crop.js's openAvatarCropper() — no upload endpoint involved either
+// way, the eventual cropped result is a data URI stored directly in
+// profiles.avatar_data_url. Caller owns objectUrl and must revoke it once
+// the crop dialog is done with it (can't revoke it here — the image needs
+// to stay loadable while the crop dialog is open).
+export function loadImageFile(file) {
   return new Promise((resolve, reject) => {
     if (file.size > 15 * 1024 * 1024) {
       reject(new Error('FILE_TOO_LARGE'));
@@ -49,19 +52,7 @@ export function resizeImageToDataUrl(file) {
     }
     const img = new Image();
     const objectUrl = URL.createObjectURL(file);
-    img.onload = () => {
-      URL.revokeObjectURL(objectUrl);
-      const side = Math.min(img.width, img.height);
-      const sx = (img.width - side) / 2;
-      const sy = (img.height - side) / 2;
-
-      const canvas = document.createElement('canvas');
-      canvas.width = AVATAR_SIZE;
-      canvas.height = AVATAR_SIZE;
-      const ctx = canvas.getContext('2d');
-      ctx.drawImage(img, sx, sy, side, side, 0, 0, AVATAR_SIZE, AVATAR_SIZE);
-      resolve(canvas.toDataURL('image/jpeg', 0.8));
-    };
+    img.onload = () => resolve({ img, objectUrl });
     img.onerror = () => {
       URL.revokeObjectURL(objectUrl);
       reject(new Error('NOT_AN_IMAGE'));

@@ -17,9 +17,23 @@ body {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   line-height: 1.4;
   /* Mobile/tablet are the primary targets (§6) — this caps line length on the
-     rare desktop visit without doing anything special for it. */
+     rare desktop visit without doing anything special for it. Pages whose
+     content actually scales to fill more room (grids, photo/video) get a
+     wider cap below instead of this default — this stays the width for
+     pages that don't (forms, the single-line Cats placeholder), where more
+     width would just be empty space, not a better use of it. */
   max-width: 720px;
   margin-inline: auto;
+}
+
+/* Wider cap for content that genuinely benefits from more room on a real
+   monitor: Gallery/Timeline's photo grids (#grid/#timeline), the media
+   viewer (.viewer-stage), Reel (.reel-feed), and the message board
+   (.board-page). Doesn't affect mobile — only matters once the viewport
+   actually exceeds it. */
+body:has(#grid), body:has(#timeline), body:has(.viewer-stage),
+body:has(.reel-feed), body:has(.board-page) {
+  max-width: 1200px;
 }
 
 a { color: inherit; }
@@ -45,7 +59,10 @@ img, video {
   overflow-x: auto;
 }
 
-.site-nav a, .site-nav .spacer { flex-shrink: 0; }
+/* Every nav item stays on one line and never shrinks — button included, not
+   just links: "Sign out" (the only <button> here) was the one exception,
+   left free to shrink/wrap while every <a> stayed rigid. */
+.site-nav a, .site-nav button, .site-nav .spacer { flex-shrink: 0; white-space: nowrap; }
 
 .site-nav a, .site-nav button {
   min-height: var(--tap-min);
@@ -166,11 +183,26 @@ h1 { font-size: 1.3rem; margin: 0 0 16px; }
   margin-right: 2px;
 }
 
-/* Gallery grid */
+/* Gallery grid — 3 columns is the mobile default (unchanged); the wider
+   body cap above (Gallery/Timeline) would otherwise just inflate these same
+   3 tiles to an oversized fixed width instead of actually showing more
+   photos per row, so more columns step in as the viewport grows. */
 .media-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 4px;
+}
+
+@media (min-width: 600px) {
+  .media-grid { grid-template-columns: repeat(4, 1fr); }
+}
+
+@media (min-width: 900px) {
+  .media-grid { grid-template-columns: repeat(5, 1fr); }
+}
+
+@media (min-width: 1200px) {
+  .media-grid { grid-template-columns: repeat(6, 1fr); }
 }
 
 .media-grid a {
@@ -252,15 +284,29 @@ h1 { font-size: 1.3rem; margin: 0 0 16px; }
   cursor: default;
 }
 
-.timeline-nav span {
-  min-width: 80px;
+/* The current-period label is a real <select> (jump straight to any week/
+   month), not just static text — styled to still read as a label first,
+   dropdown second: centered text, no visible border/background until
+   interacted with. */
+.timeline-nav select {
+  min-width: 100px;
+  min-height: 36px;
+  padding: 0 6px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
   font-weight: 600;
   font-size: 0.95rem;
   text-align: center;
+  text-align-last: center;
+  cursor: pointer;
 }
 
 @media (hover: hover) {
   .timeline-nav button:not(:disabled):hover { border-color: var(--text-muted); }
+  .timeline-nav select:hover { border-color: var(--border); background: var(--surface); }
 }
 
 /* Language toggle */
@@ -441,6 +487,14 @@ h1 { font-size: 1.3rem; margin: 0 0 16px; }
 .avatar {
   width: 36px;
   height: 36px;
+  /* The site-wide `img, video { max-width: 100% }` reset (style.css) was
+     capping this element's WIDTH down to whatever room was left in a tight
+     flex row (Settings' avatar-row, at avatar-lg's 88px) while height stayed
+     fixed — an oval, not a circle. Only ever showed up with a real <img>
+     (the no-picture placeholder is a plain <div>, which that reset doesn't
+     touch at all — this is why it looked fine before a photo was uploaded).
+     max-width: none here always wins over that lower-specificity reset. */
+  max-width: none;
   border-radius: 50%;
   object-fit: cover;
   flex-shrink: 0;
@@ -544,6 +598,73 @@ h1 { font-size: 1.3rem; margin: 0 0 16px; }
   margin-bottom: 4px;
 }
 
+/* Flex items shrink below their content's natural size by default —
+   #avatar-preview wrapping a fixed 88px avatar is exactly the shape of bug
+   the .avatar fix above guards against, so it gets the same protection. */
+.avatar-row #avatar-preview {
+  flex-shrink: 0;
+}
+
+/* Avatar crop dialog — same shell styling as board.html's compose/view
+   dialogs (kept consistent rather than introducing a third dialog look). */
+dialog#avatar-crop-dialog {
+  width: min(340px, 92vw);
+  border: none;
+  border-radius: 12px;
+  padding: 20px;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.2);
+}
+
+dialog#avatar-crop-dialog::backdrop {
+  background: rgba(0, 0, 0, 0.4);
+}
+
+dialog#avatar-crop-dialog h2 {
+  font-size: 1.1rem;
+  margin: 0 0 12px;
+}
+
+/* Fixed circular window, sized to match how the result actually displays
+   everywhere — what you see while dragging/zooming is what you get.
+   `width: min(260px, 100%)` + aspect-ratio (not a separate fixed height) so
+   it stays a true circle even if it has to shrink on a narrow phone —
+   a fixed height alongside a shrinking width is exactly how the .avatar
+   ellipse bug happened elsewhere; this avoids repeating it here. */
+.crop-stage {
+  position: relative;
+  width: min(260px, 100%);
+  aspect-ratio: 1 / 1;
+  margin: 0 auto 16px;
+  border-radius: 50%;
+  overflow: hidden;
+  background: var(--border);
+  touch-action: none; /* so dragging here doesn't also scroll the page on touch */
+  cursor: grab;
+}
+
+.crop-stage:active {
+  cursor: grabbing;
+}
+
+.crop-stage img {
+  position: absolute;
+  top: 0;
+  left: 0;
+  max-width: none; /* same reset-neutralizing reasoning as .avatar above */
+  user-select: none;
+  -webkit-user-drag: none;
+  /* The stage element (not the image) owns the drag pointer events — keeps
+     the hit target the full circle regardless of exactly where the image's
+     visible pixels currently sit within it. */
+  pointer-events: none;
+}
+
+#crop-zoom {
+  display: block;
+  width: 100%;
+  margin: 0 0 4px;
+}
+
 .success-message {
   color: #2e7d32;
   font-size: 0.9rem;
@@ -562,14 +683,24 @@ h1 { font-size: 1.3rem; margin: 0 0 16px; }
 /* Secondary settings actions (not danger, not the primary form submit) —
    Sign out on all devices was previously an unstyled default browser button. */
 .secondary-button {
+  /* inline-flex, not the button-default inline-block — now also used on a
+     plain <a> (Settings' admin link), which ignores min-height/vertical
+     padding entirely under its default `display: inline`. */
+  display: inline-flex;
+  align-items: center;
   align-self: flex-start;
   min-height: var(--tap-min);
+  /* Both current uses sit directly under a paragraph/heading with no
+     bottom margin of its own (the Sessions hint's -8px top margin leaves
+     literally zero gap below it) — without this they visually touch. */
+  margin-top: 12px;
   padding: 0 20px;
   border: 1px solid var(--border);
   border-radius: 8px;
   background: var(--surface);
   color: var(--text);
   font-weight: 600;
+  text-decoration: none;
   cursor: pointer;
 }
 

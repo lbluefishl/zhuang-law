@@ -1,9 +1,8 @@
 .board-page { padding-bottom: 40px; }
 
-/* Board has real content to fill (up to 30 notes) — worth more than the
-   site-wide 720px reading-column cap on a regular monitor. Doesn't affect
-   mobile: this only matters once the viewport actually exceeds it. */
-body:has(.board-page) { max-width: 1200px; }
+/* The wide-page max-width override for this page now lives in style.css,
+   grouped with the other pages that get the same treatment (Gallery,
+   Timeline, media viewer, Reel). */
 
 .board-header {
   text-align: center;

@@ -66,6 +66,11 @@
     <button type="button" id="signout-all-btn" class="secondary-button" data-i18n="settings.signout_all_btn">Sign out on all devices</button>
   </section>
 
+  <section id="admin-section" hidden>
+    <h2 data-i18n="settings.admin_heading">Admin</h2>
+    <a href="admin-comments.html" class="secondary-button" data-i18n="settings.admin_comments_link">New comments</a>
+  </section>
+
   <section class="danger-zone">
     <h2 data-i18n="settings.danger_heading">Danger zone</h2>
 
@@ -76,12 +81,26 @@
   </section>
 </main>
 
+<dialog id="avatar-crop-dialog">
+  <h2 data-i18n="settings.crop_heading">Adjust your photo</h2>
+  <div class="crop-stage" id="crop-stage">
+    <img id="crop-img" alt="">
+  </div>
+  <input type="range" id="crop-zoom" min="1" max="3" step="0.01" value="1">
+  <div class="dialog-actions">
+    <span class="spacer"></span>
+    <button type="button" id="crop-cancel-btn" data-i18n="board.cancel_btn">Cancel</button>
+    <button type="button" id="crop-use-btn" data-i18n="settings.crop_use_btn">Use photo</button>
+  </div>
+</dialog>
+
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.0/dist/umd/supabase.js"></script>
 <script type="module">
   import { supabaseClient } from './js/supabase-client.js';
   import { requireAuth, initSignOutButtons, signOut } from './js/auth-guard.js';
-  import { loadProfile, updateProfile, changePin, deleteAllMyComments, deleteMyAccount, resizeImageToDataUrl } from './js/settings.js';
+  import { loadProfile, updateProfile, changePin, deleteAllMyComments, deleteMyAccount, loadImageFile, AVATAR_SIZE } from './js/settings.js';
   import { createAvatarElement } from './js/avatar.js';
+  import { openAvatarCropper } from './js/avatar-crop.js';
   import { setStoredLanguage, loadDictionary, applyTranslations, applyStoredLanguage, syncLanguageFromProfile, t } from './js/i18n.js';
 
   const session = await requireAuth();
@@ -113,19 +132,42 @@
   document.getElementById('relationship').value = profile.relationship || '';
   document.getElementById('language').value = profile.preferred_language;
   renderAvatarPreview(profile.display_name, profile.avatar_data_url);
+  // loadProfile already selects '*', so is_admin is here for free — no
+  // second query needed just to decide whether to show this link.
+  document.getElementById('admin-section').hidden = !profile.is_admin;
 
   document.getElementById('avatar-input').addEventListener('change', async (e) => {
     const file = e.target.files[0];
+    e.target.value = ''; // so picking the exact same file again still fires 'change'
     if (!file) return;
     const profileMessage = document.getElementById('profile-message');
     setFormMessage(profileMessage, '');
+
+    let loaded;
     try {
-      pendingAvatarDataUrl = await resizeImageToDataUrl(file);
-      renderAvatarPreview(document.getElementById('display-name').value, pendingAvatarDataUrl);
+      loaded = await loadImageFile(file);
     } catch (err) {
       setFormMessage(profileMessage, err.message === 'FILE_TOO_LARGE'
         ? t(dict, 'settings.msg_file_too_large')
         : t(dict, 'settings.msg_file_invalid'), true);
+      return;
+    }
+
+    const dataUrl = await openAvatarCropper({
+      dialog: document.getElementById('avatar-crop-dialog'),
+      stage: document.getElementById('crop-stage'),
+      imgEl: document.getElementById('crop-img'),
+      zoomInput: document.getElementById('crop-zoom'),
+      useBtn: document.getElementById('crop-use-btn'),
+      cancelBtn: document.getElementById('crop-cancel-btn'),
+      img: loaded.img,
+      outputSize: AVATAR_SIZE,
+    });
+    URL.revokeObjectURL(loaded.objectUrl);
+
+    if (dataUrl) { // null = cancelled — leave whatever avatar was already set alone
+      pendingAvatarDataUrl = dataUrl;
+      renderAvatarPreview(document.getElementById('display-name').value, pendingAvatarDataUrl);
     }
   });
 

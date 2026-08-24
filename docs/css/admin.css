@@ -1,0 +1,36 @@
+/* .comment / .comment-content / .comment-author / .comment-body /
+   .comment-actions / .avatar all come from style.css (shared with the
+   per-photo comment drawer) — this file only adds what's specific to the
+   admin feed: the photo thumbnail and the "new"/"reply" tags. */
+
+.admin-comment-thumb {
+  flex-shrink: 0;
+  display: block;
+  width: 56px;
+  height: 56px;
+  border-radius: 6px;
+  overflow: hidden;
+  background: var(--border);
+}
+
+.admin-comment-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.admin-new-badge {
+  display: inline-block;
+  background: var(--accent);
+  color: #fff;
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 999px;
+  vertical-align: middle;
+}
+
+.admin-reply-tag {
+  color: var(--text-muted);
+  font-style: italic;
+}

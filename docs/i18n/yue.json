@@ -42,7 +42,8 @@
     "tab_all": "全部",
     "tab_favorites": "收藏",
     "sort_label": "排序方式",
-    "sort_date": "日期",
+    "sort_date_desc": "日期(最新排先)",
+    "sort_date_asc": "日期(最舊排先)",
     "sort_likes": "讚好數",
     "sort_comments": "留言數",
     "sort_views": "睇過幾多次",
@@ -145,7 +146,7 @@
     "danger_heading": "危險操作",
     "delete_comments_btn": "刪除我所有嘅留言",
     "delete_account_btn": "刪除我嘅帳戶",
-    "delete_account_hint": "會清除你嘅名、頭像同留言,亦會喺所有裝置度登出。呢個唔會刪除你嘅登入方式——如果要刪除,請搵網站管理員。",
+    "delete_account_hint": "會清除你嘅名、頭像同留言,亦會喺所有裝置度登出。呢個唔會刪除你嘅登入方式——如果要刪除,請搵Mike。",
     "msg_saved": "已儲存。",
     "msg_save_error": "儲存唔到,請再試一次。",
     "msg_file_too_large": "呢張相太大喇。",
@@ -157,7 +158,20 @@
     "msg_pin_mismatch": "兩次輸入嘅新PIN碼唔一樣。",
     "confirm_delete_comments": "刪除晒你發過嘅所有留言?呢個操作冇得返轉頭。",
     "confirm_delete_account": "刪除你嘅帳戶?會清除你嘅名、頭像同留言,亦會喺所有裝置度登出。呢個操作冇得返轉頭。",
-    "done_delete_comments": "搞掂——你嘅留言已經刪除咗。"
+    "done_delete_comments": "搞掂——你嘅留言已經刪除咗。",
+    "admin_heading": "管理員",
+    "admin_comments_link": "新留言",
+    "crop_heading": "調整你嘅相片",
+    "crop_use_btn": "用呢張相"
+  },
+  "admin": {
+    "title": "留言管理",
+    "loading": "載入緊…",
+    "empty": "仲未有留言。",
+    "error": "載入唔到留言。",
+    "new_badge": "新",
+    "reply_tag": "回覆",
+    "view_photo": "睇相"
   },
   "language_name": "廣東話"
 }

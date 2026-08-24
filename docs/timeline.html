@@ -18,7 +18,7 @@
   <h1 data-i18n="timeline.title">Timeline</h1>
   <div class="timeline-nav" id="timeline-nav" hidden>
     <button type="button" id="tl-prev">▲</button>
-    <span id="tl-current"></span>
+    <select id="tl-current"></select>
     <button type="button" id="tl-next">▼</button>
   </div>
   <p class="loading-state" id="status" data-i18n="timeline.loading">Loading…</p>
@@ -112,31 +112,40 @@
     currentGrid.appendChild(a);
   }
 
-  // Month nav — arrows step between age-group headings; a scroll listener
-  // (IntersectionObserver below) keeps the label in sync when someone just
-  // scrolls by hand instead of tapping an arrow.
+  // Month nav — arrows step one group at a time; the label between them is
+  // also a real <select> so any week/month is reachable directly, not just
+  // by stepping through every one in between. A scroll listener
+  // (IntersectionObserver below) keeps both in sync when someone just
+  // scrolls by hand instead of using either control.
   if (groups.length) {
     const nav = document.getElementById('timeline-nav');
     const prevBtn = document.getElementById('tl-prev');
     const nextBtn = document.getElementById('tl-next');
-    const currentLabelEl = document.getElementById('tl-current');
+    const currentSelect = document.getElementById('tl-current');
     nav.hidden = false;
+
+    currentSelect.innerHTML = '';
+    groups.forEach((g, i) => {
+      const opt = document.createElement('option');
+      opt.value = i;
+      opt.textContent = g.label;
+      currentSelect.appendChild(opt);
+    });
 
     let idx = 0;
     function setIdx(i) {
       idx = Math.max(0, Math.min(groups.length - 1, i));
-      currentLabelEl.textContent = groups[idx].label;
+      currentSelect.value = idx;
       prevBtn.disabled = idx === 0;
       nextBtn.disabled = idx === groups.length - 1;
     }
-    prevBtn.addEventListener('click', () => {
-      setIdx(idx - 1);
+    function goTo(i) {
+      setIdx(i);
       groups[idx].el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    });
-    nextBtn.addEventListener('click', () => {
-      setIdx(idx + 1);
-      groups[idx].el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    });
+    }
+    prevBtn.addEventListener('click', () => goTo(idx - 1));
+    nextBtn.addEventListener('click', () => goTo(idx + 1));
+    currentSelect.addEventListener('change', () => goTo(Number(currentSelect.value)));
     setIdx(0);
 
     // rootMargin pushes the "trigger line" below both sticky bars (nav +

@@ -24,7 +24,8 @@
     <label class="sort-control">
       <span data-i18n="gallery.sort_label">Sort by</span>
       <select id="sort-select">
-        <option value="date" data-i18n="gallery.sort_date">Date</option>
+        <option value="date_desc" data-i18n="gallery.sort_date_desc">Date (newest first)</option>
+        <option value="date_asc" data-i18n="gallery.sort_date_asc">Date (oldest first)</option>
         <option value="likes" data-i18n="gallery.sort_likes">Likes</option>
         <option value="comments" data-i18n="gallery.sort_comments">Comments</option>
         <option value="views" data-i18n="gallery.sort_views">Views</option>
@@ -97,7 +98,8 @@
   }
 
   const SORTERS = {
-    date: (a, b) => new Date(b.date_taken) - new Date(a.date_taken),
+    date_desc: (a, b) => new Date(b.date_taken) - new Date(a.date_taken),
+    date_asc: (a, b) => new Date(a.date_taken) - new Date(b.date_taken),
     likes: (a, b) => (likeCounts.get(b.id) || 0) - (likeCounts.get(a.id) || 0),
     comments: (a, b) => (commentCounts.get(b.id) || 0) - (commentCounts.get(a.id) || 0),
     views: (a, b) => (b.view_count || 0) - (a.view_count || 0),

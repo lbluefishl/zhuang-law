@@ -42,7 +42,8 @@
     "tab_all": "All",
     "tab_favorites": "Favorites",
     "sort_label": "Sort by",
-    "sort_date": "Date",
+    "sort_date_desc": "Date (newest first)",
+    "sort_date_asc": "Date (oldest first)",
     "sort_likes": "Likes",
     "sort_comments": "Comments",
     "sort_views": "Views",
@@ -145,7 +146,7 @@
     "danger_heading": "Danger zone",
     "delete_comments_btn": "Delete all my comments",
     "delete_account_btn": "Delete my account",
-    "delete_account_hint": "Clears your name, picture, and comments, and signs you out everywhere. This does not remove your login — ask whoever manages the site for that.",
+    "delete_account_hint": "Clears your name, picture, and comments, and signs you out everywhere. This does not remove your login — ask Mike for that.",
     "msg_saved": "Saved.",
     "msg_save_error": "Could not save — please try again.",
     "msg_file_too_large": "That image is too large.",
@@ -157,7 +158,20 @@
     "msg_pin_mismatch": "New PINs don't match.",
     "confirm_delete_comments": "Delete all comments you've ever posted? This can't be undone.",
     "confirm_delete_account": "Delete your account? This clears your name, picture, and comments, and signs you out everywhere. This cannot be undone.",
-    "done_delete_comments": "Done — your comments have been deleted."
+    "done_delete_comments": "Done — your comments have been deleted.",
+    "admin_heading": "Admin",
+    "admin_comments_link": "New comments",
+    "crop_heading": "Adjust your photo",
+    "crop_use_btn": "Use photo"
+  },
+  "admin": {
+    "title": "Comments",
+    "loading": "Loading…",
+    "empty": "No comments yet.",
+    "error": "Could not load comments.",
+    "new_badge": "New",
+    "reply_tag": "Reply",
+    "view_photo": "View photo"
   },
   "language_name": "English"
 }

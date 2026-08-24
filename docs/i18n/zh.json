@@ -42,7 +42,8 @@
     "tab_all": "全部",
     "tab_favorites": "收藏",
     "sort_label": "排序方式",
-    "sort_date": "日期",
+    "sort_date_desc": "日期(最新在前)",
+    "sort_date_asc": "日期(最早在前)",
     "sort_likes": "点赞数",
     "sort_comments": "留言数",
     "sort_views": "观看数",
@@ -145,7 +146,7 @@
     "danger_heading": "危险操作",
     "delete_comments_btn": "删除我的所有留言",
     "delete_account_btn": "删除我的账户",
-    "delete_account_hint": "会清除你的姓名、头像和留言,并在所有设备上退出登录。这不会删除你的登录方式——如需删除,请联系网站管理员。",
+    "delete_account_hint": "会清除你的姓名、头像和留言,并在所有设备上退出登录。这不会删除你的登录方式——如需删除,请联系Mike。",
     "msg_saved": "已保存。",
     "msg_save_error": "保存失败,请重试。",
     "msg_file_too_large": "这张图片太大了。",
@@ -157,7 +158,20 @@
     "msg_pin_mismatch": "两次输入的新PIN码不一致。",
     "confirm_delete_comments": "删除你发过的所有留言?此操作无法撤销。",
     "confirm_delete_account": "删除你的账户?这会清除你的姓名、头像和留言,并在所有设备上退出登录。此操作无法撤销。",
-    "done_delete_comments": "已完成——你的留言已被删除。"
+    "done_delete_comments": "已完成——你的留言已被删除。",
+    "admin_heading": "管理员",
+    "admin_comments_link": "新留言",
+    "crop_heading": "调整你的照片",
+    "crop_use_btn": "使用这张照片"
+  },
+  "admin": {
+    "title": "留言管理",
+    "loading": "加载中…",
+    "empty": "还没有留言。",
+    "error": "无法加载留言。",
+    "new_badge": "新",
+    "reply_tag": "回复",
+    "view_photo": "查看照片"
   },
   "language_name": "中文"
 }

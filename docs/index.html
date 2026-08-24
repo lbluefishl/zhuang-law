@@ -4,51 +4,61 @@
 <link rel="stylesheet" href="css/style.css">
 
 <main>
-  <div class="lang-toggle" id="lang-toggle"></div>
-  <form class="login-form" id="login-form">
-    <h1 data-i18n="login.heading">Family Photos</h1>
-    <label for="email" data-i18n="login.email_label">Email</label>
-    <input type="email" id="email" autocomplete="username" required>
-    <label for="pin" data-i18n="login.pin_label">PIN</label>
-    <input type="password" id="pin" class="pin-input" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" autocomplete="current-password" required>
-    <p class="error-message" id="error-message" role="alert"></p>
-    <button type="submit" data-i18n="login.submit">Sign in</button>
-  </form>
-  <p style="text-align:center"><a href="signup.html" data-i18n="login.join_link">Have an invite code? Join</a></p>
+  <p class="loading-state" id="status">Loading…</p>
+  <div id="login-wrap" hidden>
+    <div class="lang-toggle" id="lang-toggle"></div>
+    <form class="login-form" id="login-form">
+      <h1 data-i18n="login.heading">Family Photos</h1>
+      <label for="email" data-i18n="login.email_label">Email</label>
+      <input type="email" id="email" autocomplete="username" required>
+      <label for="pin" data-i18n="login.pin_label">PIN</label>
+      <input type="password" id="pin" class="pin-input" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" autocomplete="current-password" required>
+      <p class="error-message" id="error-message" role="alert"></p>
+      <button type="submit" data-i18n="login.submit">Sign in</button>
+    </form>
+    <p style="text-align:center"><a href="signup.html" data-i18n="login.join_link">Have an invite code? Join</a></p>
+  </div>
 </main>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.0/dist/umd/supabase.js"></script>
 <script type="module">
   import { supabaseClient } from './js/supabase-client.js';
-  import { initLanguageToggle, getStoredLanguage, loadDictionary, syncLanguageFromProfile } from './js/i18n.js';
+  import { initLanguageToggle, getStoredLanguage, loadDictionary } from './js/i18n.js';
 
-  await initLanguageToggle(document.getElementById('lang-toggle'));
+  const status = document.getElementById('status');
+  const loginWrap = document.getElementById('login-wrap');
 
-  const form = document.getElementById('login-form');
-  const errorEl = document.getElementById('error-message');
-
-  // Already signed in? Sync this device to the account's saved language
-  // (§7 resolution order: profile first, local toggle second) before skipping
-  // straight to the gallery.
+  // Already signed in? Go straight to the gallery — the login form is never
+  // shown at all, not shown-then-redirected-away-from. Previously this also
+  // ran syncLanguageFromProfile() before redirecting, a second network round
+  // trip stacked in front of the redirect; gallery.html (the only place this
+  // ever redirects to) already does that same sync itself on load, so doing
+  // it here too was pure duplicated latency, not anything the destination
+  // page needed handed to it.
   const { data: { session } } = await supabaseClient.auth.getSession();
   if (session) {
-    await syncLanguageFromProfile(supabaseClient, session.user.id);
     window.location.href = 'gallery.html';
+  } else {
+    status.remove();
+    loginWrap.hidden = false;
+    await initLanguageToggle(document.getElementById('lang-toggle'));
+
+    const form = document.getElementById('login-form');
+    const errorEl = document.getElementById('error-message');
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      errorEl.textContent = '';
+      const email = document.getElementById('email').value;
+      const pin = document.getElementById('pin').value;
+
+      const { error } = await supabaseClient.auth.signInWithPassword({ email, password: pin });
+      if (error) {
+        const dict = await loadDictionary(getStoredLanguage());
+        errorEl.textContent = dict.login.error;
+        return;
+      }
+      window.location.href = 'gallery.html';
+    });
   }
-
-  form.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    errorEl.textContent = '';
-    const email = document.getElementById('email').value;
-    const pin = document.getElementById('pin').value;
-
-    const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password: pin });
-    if (error) {
-      const dict = await loadDictionary(getStoredLanguage());
-      errorEl.textContent = dict.login.error;
-      return;
-    }
-    await syncLanguageFromProfile(supabaseClient, data.user.id);
-    window.location.href = 'gallery.html';
-  });
 </script>

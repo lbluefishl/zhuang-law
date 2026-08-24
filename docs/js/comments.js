@@ -40,6 +40,22 @@ export async function loadVisibleCommentCount(supabaseClient, mediaId) {
   return count ?? 0;
 }
 
+// Site-wide, newest first — for the admin comments dashboard, not a single
+// media item's thread. RLS already lets any authenticated user read every
+// comment (comments_select has no admin restriction); the admin-only gate
+// lives in the page itself (checks profiles.is_admin), not here. Soft-deleted
+// comments are left out — a moderation feed of things people took back down
+// again isn't useful signal for "what's new."
+export async function loadAllComments(supabaseClient) {
+  const { data, error } = await supabaseClient
+    .from('comments')
+    .select('id, body, created_at, media_id, parent_comment_id, profiles(display_name, relationship, avatar_data_url), media(thumb_key, media_type)')
+    .is('deleted_at', null)
+    .order('created_at', { ascending: false });
+  if (error) throw error;
+  return data;
+}
+
 export async function loadComments(supabaseClient, mediaId) {
   const { data, error } = await supabaseClient
     .from('comments')
