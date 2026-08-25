@@ -134,21 +134,49 @@
         const prevId = prevItem?.id;
         const nextId = nextItem?.id;
 
-        // TikTok-style: warm the browser's HTTP cache for whichever item(s)
-        // are one tap/swipe away, so Prev/Next feels closer to instant
-        // instead of starting a multi-MB download from a standing start.
-        // Skipped entirely on Data Saver / a known-slow connection — the
-        // Network Information API isn't in Safari, so this is a progressive
-        // enhancement, not something every visitor gets.
+        // TikTok-style: warm the browser's cache for whichever item(s) are
+        // one tap/swipe away, so Prev/Next feels closer to instant instead
+        // of starting a multi-MB download from a standing start.
+        //
+        // This used <link rel="prefetch"> before — dropped it. Safari (iOS
+        // AND macOS) has never implemented rel=prefetch at all, silently
+        // no-opping it; for a family site where a lot of relatives are on
+        // iPhones, that meant a real fraction of visitors got zero
+        // preloading despite the code running. Even where it IS supported,
+        // browsers treat it as their lowest, most-skippable priority.
+        // Actually requesting the resource — `new Image()` for photos, a
+        // real (hidden) <video preload="auto"> for videos — works in every
+        // browser and can't be silently ignored the way a hint can.
+        // References are kept in `preloaded` so nothing here gets garbage
+        // collected mid-request.
         const conn = navigator.connection;
         const skipPrefetch = conn && (conn.saveData || ['slow-2g', '2g'].includes(conn.effectiveType));
+        const preloaded = [];
         if (!skipPrefetch) {
           for (const neighbor of [nextItem, prevItem]) {
             if (!neighbor) continue;
-            const link = document.createElement('link');
-            link.rel = 'prefetch';
-            link.href = `${R2_PUBLIC_URL}/${neighbor.r2_key}`;
-            document.head.appendChild(link);
+            const url = `${R2_PUBLIC_URL}/${neighbor.r2_key}`;
+            if (neighbor.media_type === 'video') {
+              const video = document.createElement('video');
+              video.preload = 'auto';
+              video.muted = true;
+              video.src = url;
+              // Not display:none — some browsers skip loading elements
+              // that are never actually rendered at all. This renders a
+              // 1x1 invisible box instead, which reliably still loads.
+              video.style.cssText = 'position:absolute; width:1px; height:1px; opacity:0; pointer-events:none;';
+              document.body.appendChild(video);
+              preloaded.push(video);
+            } else {
+              const img = new Image();
+              // Real, supported priority signal (Chrome/Edge honor it,
+              // Firefox/Safari just ignore it and fetch normally either
+              // way) — keeps this from competing with the current item's
+              // own, more urgent load.
+              img.fetchPriority = 'low';
+              img.src = url;
+              preloaded.push(img);
+            }
           }
         }
 
