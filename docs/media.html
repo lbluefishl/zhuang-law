@@ -17,10 +17,30 @@
 
 <main>
   <div class="viewer-stage" id="stage">
-    <a class="viewer-back-link" id="back-link">← Gallery</a>
+    <a class="viewer-back-link" id="back-link"></a>
     <p class="loading-state" id="status" data-i18n="media.loading">Loading…</p>
   </div>
 </main>
+
+<script>
+  // Sets the back-link before the Supabase SDK below is even requested, let
+  // alone loaded/executed — that blocking <script src> is real, measurable
+  // time (the ~0.25s still visible after the last fix) sitting in front of
+  // the module script's own otherwise-instant assignment. This has no
+  // dependency on it: `from`/`id` come straight from the URL, so a plain
+  // classic script running the moment the parser reaches this point can set
+  // the real destination immediately, before that network fetch even
+  // starts. The module script below still re-applies this (translated,
+  // once dict loads) — redundant here, not wrong.
+  (function () {
+    var params = new URLSearchParams(location.search);
+    var from = params.get('from') === 'timeline' ? 'timeline' : 'gallery';
+    var mediaId = params.get('id');
+    var link = document.getElementById('back-link');
+    link.href = mediaId ? (from + '.html?scrollTo=' + mediaId) : (from + '.html');
+    link.textContent = from === 'timeline' ? '← Timeline' : '← Gallery';
+  })();
+</script>
 
 <dialog id="comments-drawer">
   <div class="drawer-header">
@@ -45,27 +65,16 @@
   import { loadOrderedItems } from './js/media-nav.js';
   import { applyStoredLanguage, syncLanguageFromProfile, t } from './js/i18n.js';
 
-  // Everything in this block is synchronous — no network/auth wait — so it
-  // paints before any of it. `from` decides which of "← Gallery"/"← Timeline"
-  // is CORRECT, and getting that right immediately (even in English, ahead
-  // of the real dict loading below) matters more here than the translation
-  // does: the previous version left the raw HTML's hardcoded "← Gallery"
-  // showing until requireAuth() + syncLanguageFromProfile() + the dictionary
-  // fetch had all finished — three real network round trips — so a Prev/Next
-  // hop from a Timeline photo visibly showed "← Gallery" (wrong destination,
-  // not just wrong language) for however long that took. i18n.js's own
-  // dictionaries carry these two exact fallback strings; EN_FALLBACK below
-  // is intentionally hardcoded rather than importing en.json for this,
-  // since dodging that fetch is the entire point.
-  const EN_FALLBACK = { gallery: '← Gallery', timeline: '← Timeline' };
+  // href + an English-fallback textContent are already set — see the plain
+  // inline <script> right after #back-link in the HTML above, which runs
+  // immediately (no dependency on the Supabase SDK <script src> below even
+  // finishing its download, let alone requireAuth/syncLanguageFromProfile/
+  // the dictionary fetch this module script itself still has ahead of it).
+  // Recomputed here anyway since `from`/`mediaId` are needed below regardless.
   const params = new URLSearchParams(window.location.search);
   const mediaId = params.get('id');
   const from = params.get('from') === 'timeline' ? 'timeline' : 'gallery';
   const backLink = document.getElementById('back-link');
-  // scrollTo carries the current item so the grid can scroll back to where
-  // it actually was, instead of resetting to the top.
-  backLink.href = mediaId ? `${from}.html?scrollTo=${mediaId}` : `${from}.html`;
-  backLink.textContent = EN_FALLBACK[from];
 
   const session = await requireAuth();
   initSignOutButtons();
