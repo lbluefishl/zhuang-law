@@ -45,6 +45,28 @@
   import { loadOrderedItems } from './js/media-nav.js';
   import { applyStoredLanguage, syncLanguageFromProfile, t } from './js/i18n.js';
 
+  // Everything in this block is synchronous — no network/auth wait — so it
+  // paints before any of it. `from` decides which of "← Gallery"/"← Timeline"
+  // is CORRECT, and getting that right immediately (even in English, ahead
+  // of the real dict loading below) matters more here than the translation
+  // does: the previous version left the raw HTML's hardcoded "← Gallery"
+  // showing until requireAuth() + syncLanguageFromProfile() + the dictionary
+  // fetch had all finished — three real network round trips — so a Prev/Next
+  // hop from a Timeline photo visibly showed "← Gallery" (wrong destination,
+  // not just wrong language) for however long that took. i18n.js's own
+  // dictionaries carry these two exact fallback strings; EN_FALLBACK below
+  // is intentionally hardcoded rather than importing en.json for this,
+  // since dodging that fetch is the entire point.
+  const EN_FALLBACK = { gallery: '← Gallery', timeline: '← Timeline' };
+  const params = new URLSearchParams(window.location.search);
+  const mediaId = params.get('id');
+  const from = params.get('from') === 'timeline' ? 'timeline' : 'gallery';
+  const backLink = document.getElementById('back-link');
+  // scrollTo carries the current item so the grid can scroll back to where
+  // it actually was, instead of resetting to the top.
+  backLink.href = mediaId ? `${from}.html?scrollTo=${mediaId}` : `${from}.html`;
+  backLink.textContent = EN_FALLBACK[from];
+
   const session = await requireAuth();
   initSignOutButtons();
   const myId = session.user.id;
@@ -57,17 +79,11 @@
 
   document.getElementById('drawer-close').addEventListener('click', () => drawer.close());
 
-  const params = new URLSearchParams(window.location.search);
-  const mediaId = params.get('id');
-  const from = params.get('from') === 'timeline' ? 'timeline' : 'gallery';
-
-  // A real link back to wherever this was opened from, not history.back() —
-  // predictable regardless of how many Prev/Next hops happened in between,
-  // and always visible (unlike Prev/Next, which are pointer-only — see below).
-  // scrollTo carries the current item so the grid can scroll back to where
-  // it actually was, instead of resetting to the top.
-  const backLink = document.getElementById('back-link');
-  backLink.href = mediaId ? `${from}.html?scrollTo=${mediaId}` : `${from}.html`;
+  // Re-applies the real translation now that dict is actually loaded — a
+  // same-language no-op for English visitors (already showing the right
+  // string above), a quick correction from the English fallback to the
+  // right zh/yue text for everyone else. Either way, it can never show the
+  // wrong DESTINATION the way the old flash could.
   backLink.textContent = from === 'timeline' ? t(dict, 'media.back_timeline') : t(dict, 'media.back_gallery');
 
   if (!mediaId) {
@@ -78,15 +94,36 @@
     // finished loading, which made Prev/Next visibly lag in.
     const orderedItemsPromise = loadOrderedItems(supabaseClient, from).catch(() => []);
 
-    const { data: item, error } = await supabaseClient
-      .from('media')
-      .select('r2_key, thumb_key, media_type, width, height, date_taken')
-      .eq('id', mediaId)
-      .single();
+    // A Prev/Next hop's target was already IN the ordered list the
+    // previous page fetched (loadOrderedItems now selects every field this
+    // page renders with, not just id/r2_key) — stashed in sessionStorage so
+    // this page can use it directly instead of re-querying Supabase for a
+    // row it effectively already had. This is what was actually behind
+    // "still shows a loading screen even with prefetching" — the R2 file
+    // bytes being warm never mattered if the page was still waiting on this
+    // query before it would even try to display them. Falls through to a
+    // fresh query on a cache miss (direct link, first visit this tab, a
+    // different `from` than what's cached, or storage blocked).
+    let item = null;
+    try {
+      const cached = JSON.parse(sessionStorage.getItem(`zl_media_order:${from}`) || 'null');
+      item = cached?.find((m) => m.id === mediaId) || null;
+    } catch { /* corrupt/blocked storage — just fall through to the query */ }
 
-    if (error || !item) {
-      status.textContent = t(dict, 'media.error_not_found');
-    } else {
+    if (!item) {
+      const { data, error } = await supabaseClient
+        .from('media')
+        .select('r2_key, thumb_key, media_type, date_taken')
+        .eq('id', mediaId)
+        .single();
+      if (error || !data) {
+        status.textContent = t(dict, 'media.error_not_found');
+      } else {
+        item = data;
+      }
+    }
+
+    if (item) {
       status.remove();
 
       // Fire-and-forget — a real open of the detail page counts as a view,
@@ -128,6 +165,14 @@
       // expected gesture) both come from the same ordered-list lookup.
       // Doesn't wait on the action bar or comments below it.
       orderedItemsPromise.then((orderedItems) => {
+        // Refreshes the cache the fast-path lookup above reads from, so the
+        // *next* hop (or a hop from this same item in the other direction)
+        // can skip its own row query too. Written here unconditionally,
+        // whether or not this load itself hit the cache.
+        try {
+          sessionStorage.setItem(`zl_media_order:${from}`, JSON.stringify(orderedItems));
+        } catch { /* storage blocked/full — preload/nav still work, just no fast path next time */ }
+
         const currentIndex = orderedItems.findIndex((m) => m.id === mediaId);
         const prevItem = currentIndex > 0 ? orderedItems[currentIndex - 1] : undefined;
         const nextItem = currentIndex !== -1 ? orderedItems[currentIndex + 1] : undefined;
