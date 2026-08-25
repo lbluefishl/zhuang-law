@@ -107,7 +107,6 @@
     "message": "由Mike和Ashley制作中——敬请期待🐾"
   },
   "media": {
-    "loading": "加载中…",
     "error_no_id": "未指定照片。",
     "error_not_found": "找不到这张照片。",
     "back_gallery": "← 相册",

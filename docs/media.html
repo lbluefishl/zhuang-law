@@ -18,7 +18,13 @@
 <main>
   <div class="viewer-stage" id="stage">
     <a class="viewer-back-link" id="back-link"></a>
-    <p class="loading-state" id="status" data-i18n="media.loading">Loading…</p>
+    <!-- No "Loading…" text — with the sessionStorage fast path + R2
+         preloading, this is now visible for such a short window that
+         showing it just reads as a flash of its own. Stays hidden and
+         empty unless something actually goes wrong (see the two
+         status.hidden = false; spots below), in which case it's still
+         exactly where an error message needs to show up. -->
+    <p class="loading-state" id="status" hidden></p>
   </div>
 </main>
 
@@ -96,6 +102,7 @@
   backLink.textContent = from === 'timeline' ? t(dict, 'media.back_timeline') : t(dict, 'media.back_gallery');
 
   if (!mediaId) {
+    status.hidden = false;
     status.textContent = t(dict, 'media.error_no_id');
   } else {
     // Kicked off immediately, in parallel with everything else below — this
@@ -126,6 +133,7 @@
         .eq('id', mediaId)
         .single();
       if (error || !data) {
+        status.hidden = false;
         status.textContent = t(dict, 'media.error_not_found');
       } else {
         item = data;
