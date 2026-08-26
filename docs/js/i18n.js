@@ -29,7 +29,14 @@ export function setStoredLanguage(lang) {
 }
 
 export async function loadDictionary(lang) {
-  const res = await fetch(`i18n/${lang}.json`);
+  // no-store, not just a fresh URL — the host serves these with a 10-minute
+  // Cache-Control (see cats.html/gallery.html/etc.'s own max-age), so a
+  // browser that fetched this dictionary shortly before a text change was
+  // deployed would otherwise keep reusing its stale local copy for up to 10
+  // more minutes, silently overwriting the page's already-correct HTML
+  // fallback text with the old wording moments after it renders. These
+  // files are a few KB; always asking the network is cheap insurance.
+  const res = await fetch(`i18n/${lang}.json`, { cache: 'no-store' });
   return res.json();
 }
 
