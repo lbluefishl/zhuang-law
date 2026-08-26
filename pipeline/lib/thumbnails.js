@@ -29,10 +29,15 @@ export async function makeVideoThumbnail(filePath) {
   const tmpFile = path.join(os.tmpdir(), `thumb-${crypto.randomUUID()}.jpg`);
   try {
     try {
-      await grabFrame(filePath, tmpFile, '00:00:00.5');
-    } catch {
-      // Very short clips can have nothing at 0.5s — fall back to the first frame.
+      // True first frame, not 0.5s in — this is also exactly the frame a
+      // <video> shows the instant playback starts (currentTime 0), so the
+      // thumbnail/poster overlay (reel.html) hands off to real playback
+      // with no visible content jump. Only falls back to 0.5s if frame 0
+      // itself fails to grab (e.g. a genuinely zero-length stream) — better
+      // to get a slightly-off thumbnail than no thumbnail at all.
       await grabFrame(filePath, tmpFile, '00:00:00.0');
+    } catch {
+      await grabFrame(filePath, tmpFile, '00:00:00.5');
     }
     const buffer = await fs.readFile(tmpFile);
     return sharp(buffer).jpeg({ quality: 80 }).toBuffer();
