@@ -76,9 +76,11 @@
   // immediately (no dependency on the Supabase SDK <script src> below even
   // finishing its download, let alone requireAuth/syncLanguageFromProfile/
   // the dictionary fetch this module script itself still has ahead of it).
-  // Recomputed here anyway since `from`/`mediaId` are needed below regardless.
+  // Recomputed here anyway since `from` is needed below regardless.
+  // `mediaId` becomes `let` -- Prev/Next now update it in place (see
+  // renderItem below) instead of triggering a real navigation.
   const params = new URLSearchParams(window.location.search);
-  const mediaId = params.get('id');
+  let mediaId = params.get('id');
   const from = params.get('from') === 'timeline' ? 'timeline' : 'gallery';
   const backLink = document.getElementById('back-link');
 
@@ -111,43 +113,207 @@
     status.hidden = false;
     status.textContent = t(dict, 'media.error_no_id');
   } else {
-    // Kicked off immediately, in parallel with everything else below — this
-    // used to run only after the image, action bar, AND comments had all
-    // finished loading, which made Prev/Next visibly lag in.
-    const orderedItemsPromise = loadOrderedItems(supabaseClient, from).catch(() => []);
+    // --- Prev/Next used to be a real <a href="media.html?id=...">, i.e. a
+    // full page navigation, every time. The image/video bytes for the
+    // neighbor were already preloaded, but everything ELSE still had to
+    // happen from scratch first: re-check the session, re-fetch the
+    // language dictionary, re-query is_admin, rebuild the action bar (3
+    // queries), refresh the comments drawer -- all before the page even
+    // tried to show the (already-cached) file, on top of the blank-white
+    // flash a full navigation causes regardless. None of that actually
+    // changes between photos in the same browsing session.
+    //
+    // renderItem() below swaps the DOM in place instead, using
+    // history.pushState so the URL/back-button still behave like real
+    // navigation. It reuses whichever neighbor element was already
+    // preloaded (created once, kept warm, never re-fetched), so the swap
+    // itself costs nothing but a style reset. Only the genuinely per-item
+    // state (action bar reactions, comment thread) still needs a fresh
+    // query -- everything upstream of this block runs exactly once per
+    // page load, no matter how many photos get browsed afterward.
+    let currentMediaEl = null; // the visible <img>/<video>
+    let currentActionBar = null;
+    let orderedItems = null; // full list, once loadOrderedItems resolves
+    let prevId, nextId; // kept live so the swipe handler (attached once) always sees the current neighbors
+    const preloadedEls = new Map(); // id -> hidden, already-loading <img>/<video>, always exactly {prevId, nextId}
 
-    // A Prev/Next hop's target was already IN the ordered list the
-    // previous page fetched (loadOrderedItems now selects every field this
-    // page renders with, not just id/r2_key) — stashed in sessionStorage so
-    // this page can use it directly instead of re-querying Supabase for a
-    // row it effectively already had. This is what was actually behind
-    // "still shows a loading screen even with prefetching" — the R2 file
-    // bytes being warm never mattered if the page was still waiting on this
-    // query before it would even try to display them. Falls through to a
-    // fresh query on a cache miss (direct link, first visit this tab, a
-    // different `from` than what's cached, or storage blocked).
-    let item = null;
-    try {
-      const cached = JSON.parse(sessionStorage.getItem(`zl_media_order:${from}`) || 'null');
-      item = cached?.find((m) => m.id === mediaId) || null;
-    } catch { /* corrupt/blocked storage — just fall through to the query */ }
+    const conn = navigator.connection;
+    const skipPrefetch = conn && (conn.saveData || ['slow-2g', '2g'].includes(conn.effectiveType));
 
-    if (!item) {
-      const { data, error } = await supabaseClient
-        .from('media')
-        .select('r2_key, thumb_key, media_type, date_taken')
-        .eq('id', mediaId)
-        .single();
-      if (error || !data) {
-        status.hidden = false;
-        status.textContent = t(dict, 'media.error_not_found');
+    function buildImg(item) {
+      const img = new Image();
+      img.src = `${R2_PUBLIC_URL}/${item.r2_key}`;
+      img.alt = '';
+      return img;
+    }
+    function buildVideo(item) {
+      const video = document.createElement('video');
+      video.src = `${R2_PUBLIC_URL}/${item.r2_key}`;
+      video.poster = `${R2_PUBLIC_URL}/${item.thumb_key}`;
+      video.controls = true;
+      video.playsInline = true;
+      return video;
+    }
+
+    // TikTok-style: warm the browser's cache for whichever item(s) are one
+    // tap/swipe away, so Prev/Next feels closer to instant instead of
+    // starting a multi-MB download from a standing start.
+    //
+    // This used <link rel="prefetch"> before — dropped it. Safari (iOS AND
+    // macOS) has never implemented rel=prefetch at all, silently no-opping
+    // it; for a family site where a lot of relatives are on iPhones, that
+    // meant a real fraction of visitors got zero preloading despite the
+    // code running. Even where it IS supported, browsers treat it as their
+    // lowest, most-skippable priority. Actually requesting the resource --
+    // `new Image()` for photos, a real (hidden) <video preload="auto"> for
+    // videos -- works in every browser and can't be silently ignored the
+    // way a hint can. Kept in `preloadedEls` (keyed by id) so nothing gets
+    // garbage collected mid-request, AND so a later renderItem() call can
+    // just reuse the exact element instead of starting a new fetch.
+    function ensurePreloaded(item) {
+      if (!item || skipPrefetch || preloadedEls.has(item.id)) return;
+      const url = `${R2_PUBLIC_URL}/${item.r2_key}`;
+      let el;
+      if (item.media_type === 'video') {
+        el = document.createElement('video');
+        el.preload = 'auto';
+        el.muted = true;
+        el.playsInline = true;
+        el.src = url;
+        // Not display:none — some browsers skip loading elements that are
+        // never actually rendered at all. This renders a 1x1 invisible box
+        // instead, which reliably still loads.
+        el.style.cssText = 'position:absolute; width:1px; height:1px; opacity:0; pointer-events:none;';
+        document.body.appendChild(el);
       } else {
-        item = data;
+        el = new Image();
+        // Real, supported priority signal (Chrome/Edge honor it,
+        // Firefox/Safari just ignore it and fetch normally either way) --
+        // keeps this from competing with the current item's own, more
+        // urgent load.
+        el.fetchPriority = 'low';
+        el.src = url;
+      }
+      preloadedEls.set(item.id, el);
+    }
+
+    // A preloaded neighbor becoming the visible item — reset it from its
+    // hidden 1x1 preload state to how the "current" element normally looks.
+    function promote(el, item) {
+      if (el.tagName === 'VIDEO') {
+        el.style.cssText = '';
+        el.controls = true;
+        el.muted = false;
+        el.poster = `${R2_PUBLIC_URL}/${item.thumb_key}`;
+      } else {
+        el.alt = '';
+      }
+      return el;
+    }
+
+    // The outgoing visible item becoming a background neighbor again (it's
+    // very likely about to BE one — moving forward from A to B makes A the
+    // new prevId) — park it back into the hidden 1x1 preload state rather
+    // than discarding it, so stepping back is just as instant as stepping
+    // forward was.
+    function demote(el) {
+      if (el.tagName === 'VIDEO') {
+        el.pause(); // stop audio immediately, before it's hidden
+        el.muted = true;
+        el.controls = false;
+      }
+      el.style.cssText = 'position:absolute; width:1px; height:1px; opacity:0; pointer-events:none;';
+      document.body.appendChild(el);
+      return el;
+    }
+
+    function buildNavLink(prevOrNext, targetId) {
+      const a = document.createElement('a');
+      a.className = prevOrNext === 'prev' ? 'viewer-prev-link' : 'viewer-next-link';
+      a.href = `media.html?id=${targetId}&from=${from}`; // real href kept for right-click/open-in-new-tab/no-JS
+      a.textContent = t(dict, prevOrNext === 'prev' ? 'media.prev' : 'media.next');
+      a.addEventListener('click', (e) => {
+        e.preventDefault();
+        renderItem(targetId, { pushState: true });
+      });
+      return a;
+    }
+
+    // Recomputes prevId/nextId for whatever `mediaId` currently is, rebuilds
+    // the Prev/Next buttons, and slides the preload window to match — always
+    // exactly the two immediate neighbors, freeing anything further away.
+    function updateNeighbors() {
+      const idx = orderedItems.findIndex((m) => m.id === mediaId);
+      const prevItem = idx > 0 ? orderedItems[idx - 1] : undefined;
+      const nextItem = idx !== -1 ? orderedItems[idx + 1] : undefined;
+      prevId = prevItem?.id;
+      nextId = nextItem?.id;
+
+      navGroup.innerHTML = '';
+      if (prevId) navGroup.appendChild(buildNavLink('prev', prevId));
+      if (nextId) navGroup.appendChild(buildNavLink('next', nextId));
+
+      ensurePreloaded(prevItem);
+      ensurePreloaded(nextItem);
+
+      const keep = new Set([prevId, nextId].filter(Boolean));
+      for (const [id, el] of preloadedEls) {
+        if (keep.has(id)) continue;
+        if (el.tagName === 'VIDEO') el.pause();
+        el.remove();
+        preloadedEls.delete(id);
       }
     }
 
-    if (item) {
-      status.remove();
+    // The single place a Prev/Next hop (click, swipe, or browser
+    // back/forward) goes through — resolves the target row, swaps the
+    // visible element (reusing a preloaded one when there is one), updates
+    // everything else that's actually per-item (view count, action bar,
+    // comments), and leaves auth/language/admin untouched since none of it
+    // depends on which photo is showing.
+    async function renderItem(id, { pushState, knownItem } = {}) {
+      let item = knownItem || orderedItems?.find((m) => m.id === id);
+      if (!item) {
+        const { data, error } = await supabaseClient
+          .from('media')
+          .select('r2_key, thumb_key, media_type, date_taken')
+          .eq('id', id)
+          .single();
+        if (error || !data) {
+          status.hidden = false;
+          status.textContent = t(dict, 'media.error_not_found');
+          return;
+        }
+        item = data;
+      }
+      status.remove?.(); // no-op once already removed — harmless to call again on every hop
+
+      const previousId = mediaId;
+      const previousEl = currentMediaEl;
+
+      mediaId = id;
+      if (pushState) history.pushState(null, '', `media.html?id=${id}&from=${from}`);
+
+      backLink.href = `${from}.html?scrollTo=${id}`;
+
+      let el = preloadedEls.get(id);
+      if (el) {
+        preloadedEls.delete(id);
+        promote(el, item);
+      } else {
+        el = item.media_type === 'video' ? buildVideo(item) : buildImg(item);
+      }
+      stage.appendChild(el);
+      currentMediaEl = el;
+
+      if (previousEl && previousEl !== el) {
+        previousEl.remove();
+        preloadedEls.set(previousId, demote(previousEl));
+      }
+
+      metaEl.textContent = new Date(item.date_taken).toLocaleDateString(undefined, {
+        year: 'numeric', month: 'long', day: 'numeric',
+      });
 
       // Fire-and-forget — a real open of the detail page counts as a view,
       // not just the thumbnail appearing in a grid. Doesn't block rendering.
@@ -159,149 +325,104 @@
       // script — including the image/video that was supposed to render —
       // since it's not inside a try/catch. .then()'s two-argument form is
       // the correct way to fire-and-forget one of these.
-      supabaseClient.rpc('increment_view_count', { target_media_id: mediaId }).then(() => {}, () => {});
+      supabaseClient.rpc('increment_view_count', { target_media_id: id }).then(() => {}, () => {});
 
-      if (item.media_type === 'video') {
-        const video = document.createElement('video');
-        video.src = `${R2_PUBLIC_URL}/${item.r2_key}`;
-        video.poster = `${R2_PUBLIC_URL}/${item.thumb_key}`;
-        video.controls = true;
-        video.playsInline = true;
-        stage.appendChild(video);
-      } else {
-        const img = document.createElement('img');
-        img.src = `${R2_PUBLIC_URL}/${item.r2_key}`;
-        img.alt = '';
-        stage.appendChild(img);
-      }
+      if (orderedItems) updateNeighbors();
 
-      const meta = document.createElement('p');
-      meta.className = 'viewer-meta';
-      meta.textContent = new Date(item.date_taken).toLocaleDateString(undefined, {
-        year: 'numeric', month: 'long', day: 'numeric',
-      });
-      stage.appendChild(meta);
-
-      // Prev/Next buttons (pointer devices only — CSS hides them under
-      // touch, see viewer.css) and swipe navigation (touch devices — the
-      // buttons wouldn't be reachable there anyway, and swiping is the
-      // expected gesture) both come from the same ordered-list lookup.
-      // Doesn't wait on the action bar or comments below it.
-      orderedItemsPromise.then((orderedItems) => {
-        // Refreshes the cache the fast-path lookup above reads from, so the
-        // *next* hop (or a hop from this same item in the other direction)
-        // can skip its own row query too. Written here unconditionally,
-        // whether or not this load itself hit the cache.
-        try {
-          sessionStorage.setItem(`zl_media_order:${from}`, JSON.stringify(orderedItems));
-        } catch { /* storage blocked/full — preload/nav still work, just no fast path next time */ }
-
-        const currentIndex = orderedItems.findIndex((m) => m.id === mediaId);
-        const prevItem = currentIndex > 0 ? orderedItems[currentIndex - 1] : undefined;
-        const nextItem = currentIndex !== -1 ? orderedItems[currentIndex + 1] : undefined;
-        const prevId = prevItem?.id;
-        const nextId = nextItem?.id;
-
-        // TikTok-style: warm the browser's cache for whichever item(s) are
-        // one tap/swipe away, so Prev/Next feels closer to instant instead
-        // of starting a multi-MB download from a standing start.
-        //
-        // This used <link rel="prefetch"> before — dropped it. Safari (iOS
-        // AND macOS) has never implemented rel=prefetch at all, silently
-        // no-opping it; for a family site where a lot of relatives are on
-        // iPhones, that meant a real fraction of visitors got zero
-        // preloading despite the code running. Even where it IS supported,
-        // browsers treat it as their lowest, most-skippable priority.
-        // Actually requesting the resource — `new Image()` for photos, a
-        // real (hidden) <video preload="auto"> for videos — works in every
-        // browser and can't be silently ignored the way a hint can.
-        // References are kept in `preloaded` so nothing here gets garbage
-        // collected mid-request.
-        const conn = navigator.connection;
-        const skipPrefetch = conn && (conn.saveData || ['slow-2g', '2g'].includes(conn.effectiveType));
-        const preloaded = [];
-        if (!skipPrefetch) {
-          for (const neighbor of [nextItem, prevItem]) {
-            if (!neighbor) continue;
-            const url = `${R2_PUBLIC_URL}/${neighbor.r2_key}`;
-            if (neighbor.media_type === 'video') {
-              const video = document.createElement('video');
-              video.preload = 'auto';
-              video.muted = true;
-              video.src = url;
-              // Not display:none — some browsers skip loading elements
-              // that are never actually rendered at all. This renders a
-              // 1x1 invisible box instead, which reliably still loads.
-              video.style.cssText = 'position:absolute; width:1px; height:1px; opacity:0; pointer-events:none;';
-              document.body.appendChild(video);
-              preloaded.push(video);
-            } else {
-              const img = new Image();
-              // Real, supported priority signal (Chrome/Edge honor it,
-              // Firefox/Safari just ignore it and fetch normally either
-              // way) — keeps this from competing with the current item's
-              // own, more urgent load.
-              img.fetchPriority = 'low';
-              img.src = url;
-              preloaded.push(img);
-            }
-          }
-        }
-
-        const navGroup = document.createElement('div');
-        navGroup.className = 'viewer-nav-group';
-        if (prevId) {
-          const prevLink = document.createElement('a');
-          prevLink.className = 'viewer-prev-link';
-          prevLink.href = `media.html?id=${prevId}&from=${from}`;
-          prevLink.textContent = t(dict, 'media.prev');
-          navGroup.appendChild(prevLink);
-        }
-        if (nextId) {
-          const nextLink = document.createElement('a');
-          nextLink.className = 'viewer-next-link';
-          nextLink.href = `media.html?id=${nextId}&from=${from}`;
-          nextLink.textContent = t(dict, 'media.next');
-          navGroup.appendChild(nextLink);
-        }
-        stage.appendChild(navGroup);
-
-        // Swipe left -> next, swipe right -> previous.
-        let touchStartX = null;
-        stage.addEventListener('touchstart', (e) => { touchStartX = e.touches[0].clientX; }, { passive: true });
-        stage.addEventListener('touchend', (e) => {
-          if (touchStartX === null) return;
-          const dx = e.changedTouches[0].clientX - touchStartX;
-          const SWIPE_THRESHOLD = 50;
-          if (dx < -SWIPE_THRESHOLD && nextId) window.location.href = `media.html?id=${nextId}&from=${from}`;
-          else if (dx > SWIPE_THRESHOLD && prevId) window.location.href = `media.html?id=${prevId}&from=${from}`;
-          touchStartX = null;
-        });
-      });
-
-      const actionBar = await createActionBar({
-        supabaseClient, mediaId, userId: myId,
+      // Per-item reaction/comment-count state — genuinely can't be known
+      // ahead of time the way the file bytes can, so this still costs a
+      // real round trip on every hop. Everything upstream of this function
+      // no longer does.
+      currentActionBar?.element.remove();
+      currentActionBar = await createActionBar({
+        supabaseClient, mediaId: id, userId: myId,
         onOpenComments: () => drawer.showModal(),
         isAdmin, dict, t,
         // The item is gone — nothing left on this page to show. backLink
-        // already points at the right destination (Gallery or Timeline,
+        // already points at the right destination (Gallery/Timeline,
         // whichever this was actually opened from).
         onDeleted: () => { window.location.href = backLink.href; },
       });
-      stage.appendChild(actionBar.element);
-
-      const thread = createCommentThread({
-        supabaseClient,
-        listEl: document.getElementById('comment-list'),
-        formEl: document.getElementById('comment-form'),
-        bodyInputEl: document.getElementById('comment-body'),
-        myId,
-        getMediaId: () => mediaId,
-        onCountChange: actionBar.setCommentCount,
-        dict, t,
-      });
+      stage.appendChild(currentActionBar.element);
 
       await thread.refresh();
     }
+
+    // Created once — getMediaId/onCountChange read live state (mediaId,
+    // currentActionBar) rather than being bound to whichever item was
+    // current when this was constructed, so the same thread instance keeps
+    // working correctly across every renderItem() call.
+    const thread = createCommentThread({
+      supabaseClient,
+      listEl: document.getElementById('comment-list'),
+      formEl: document.getElementById('comment-form'),
+      bodyInputEl: document.getElementById('comment-body'),
+      myId,
+      getMediaId: () => mediaId,
+      onCountChange: (count) => currentActionBar?.setCommentCount(count),
+      dict, t,
+    });
+
+    const metaEl = document.createElement('p');
+    metaEl.className = 'viewer-meta';
+    stage.appendChild(metaEl);
+
+    const navGroup = document.createElement('div');
+    navGroup.className = 'viewer-nav-group';
+    stage.appendChild(navGroup);
+
+    // Swipe left -> next, swipe right -> previous. Attached once; reads
+    // prevId/nextId live so it always targets whatever's actually adjacent,
+    // not whatever was adjacent when the page first loaded.
+    let touchStartX = null;
+    stage.addEventListener('touchstart', (e) => { touchStartX = e.touches[0].clientX; }, { passive: true });
+    stage.addEventListener('touchend', (e) => {
+      if (touchStartX === null) return;
+      const dx = e.changedTouches[0].clientX - touchStartX;
+      const SWIPE_THRESHOLD = 50;
+      if (dx < -SWIPE_THRESHOLD && nextId) renderItem(nextId, { pushState: true });
+      else if (dx > SWIPE_THRESHOLD && prevId) renderItem(prevId, { pushState: true });
+      touchStartX = null;
+    });
+
+    // Browser back/forward across a Prev/Next hop that used pushState —
+    // render in place instead of falling through to a real reload.
+    window.addEventListener('popstate', () => {
+      const id = new URLSearchParams(window.location.search).get('id');
+      if (id && id !== mediaId) renderItem(id, { pushState: false });
+    });
+
+    // Kicked off immediately, before the render below — this used to block
+    // the image/video AND the action bar AND comments behind it, which made
+    // Prev/Next visibly lag in. Once it resolves, refresh the cache the
+    // fast-path lookup below reads from (so the next hop, or a hop back to
+    // this same item, can skip its own row query too) and wire up the
+    // actual neighbor buttons/preloading/swipe targets against whatever
+    // item is CURRENT by then — which may not be the page's original one,
+    // if the visitor already clicked Prev/Next again before this resolved.
+    const orderedItemsPromise = loadOrderedItems(supabaseClient, from).catch(() => []);
+
+    // A Prev/Next hop's target was already IN the ordered list the previous
+    // page fetched (loadOrderedItems selects every field this page renders
+    // with, not just id/r2_key) — stashed in sessionStorage so the very
+    // first render on a fresh page load can use it directly instead of
+    // waiting on a fresh query for a row it effectively already had. Falls
+    // through to a fresh query on a cache miss (direct link, first visit
+    // this tab, a different `from` than what's cached, or storage blocked).
+    let fastPathItem = null;
+    try {
+      const cached = JSON.parse(sessionStorage.getItem(`zl_media_order:${from}`) || 'null');
+      fastPathItem = cached?.find((m) => m.id === mediaId) || null;
+    } catch { /* corrupt/blocked storage — renderItem's own fallback query covers this */ }
+
+    await renderItem(mediaId, { pushState: false, knownItem: fastPathItem || undefined });
+
+    orderedItemsPromise.then((items) => {
+      orderedItems = items;
+      try {
+        sessionStorage.setItem(`zl_media_order:${from}`, JSON.stringify(items));
+      } catch { /* storage blocked/full — preload/nav still work, just no fast path next time */ }
+      updateNeighbors();
+    });
   }
 </script>
