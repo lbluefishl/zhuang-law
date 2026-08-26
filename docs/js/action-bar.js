@@ -25,6 +25,10 @@ export async function deleteMedia(supabaseClient, mediaId) {
 export async function createActionBar({ supabaseClient, mediaId, userId, onOpenComments, isAdmin = false, onDeleted, dict, t }) {
   const bar = document.createElement('div');
   bar.className = 'action-bar';
+  // Reel's slide has its own click handler (tap-to-toggle-mute) on the
+  // whole slide, and this bar sits inside it — without this, every button
+  // here (comments included) bubbles up and toggles mute as a side effect.
+  bar.addEventListener('click', (e) => e.stopPropagation());
 
   const favoriteBtn = document.createElement('button');
   favoriteBtn.type = 'button';
