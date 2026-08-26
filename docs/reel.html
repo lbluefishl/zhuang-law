@@ -112,6 +112,20 @@
     video.muted = muted;
     slide.appendChild(video);
 
+    // The `poster` attribute above is only guaranteed to show until
+    // playback STARTS, not until a real frame has actually been decoded --
+    // on a slow connection there's a real gap where the poster's already
+    // gone but nothing's painted yet, which is the black flash. This <img>
+    // sits on top of the video showing the same thumbnail, under our own
+    // control instead of the browser's poster-hiding timing, and only comes
+    // off once `playing` fires (i.e. a real frame is actually on screen).
+    const poster = document.createElement('img');
+    poster.className = 'reel-poster';
+    poster.src = `${R2_PUBLIC_URL}/${item.thumb_key}`;
+    poster.alt = '';
+    slide.appendChild(poster);
+    video.addEventListener('playing', () => { poster.classList.add('reel-poster-hidden'); }, { once: true });
+
     const muteBadge = document.createElement('div');
     muteBadge.className = 'reel-mute-badge';
     muteBadge.textContent = muted ? '🔇' : '🔊';

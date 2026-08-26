@@ -34,6 +34,25 @@
   object-fit: contain;
 }
 
+/* Sits directly over the video (same thumbnail as its `poster` attribute)
+   until a real frame is confirmed on screen — see the `playing` listener in
+   reel.html. inset:0 + object-fit:contain rather than matching the video's
+   own box exactly: both compute the same letterboxing from the same source
+   aspect ratio, so they land in the same place regardless of orientation. */
+.reel-poster {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  pointer-events: none;
+  transition: opacity 150ms ease-out;
+}
+
+.reel-poster-hidden {
+  opacity: 0;
+}
+
 .reel-mute-badge {
   position: absolute;
   top: 14px;
