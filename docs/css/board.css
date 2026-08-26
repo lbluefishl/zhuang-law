@@ -12,32 +12,32 @@
 .board-header h1 { font-size: 1.4rem; margin: 0 0 4px; }
 .board-header p { color: var(--text-muted); margin: 0; }
 
-.board-grid {
-  display: grid;
-  /* Wider cards than before (was 130px) — messages can now run up to 1000
-     characters, and a wider card wraps more of that per line before the
-     note-body's line-clamp (below) has to give up and truncate. */
-  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
-  gap: 14px;
-  padding: 16px;
-}
-
-.board-slot {
-  aspect-ratio: 1 / 1.15;
-}
-
-.board-slot-empty {
-  width: 100%;
-  height: 100%;
-  border: 2px dashed var(--border);
-  border-radius: 10px;
-  background: none;
-  color: var(--text-muted);
-  font-size: 2rem;
+#add-btn {
+  margin-top: 16px;
+  min-height: var(--tap-min);
+  padding: 0 24px;
+  border: none;
+  border-radius: 999px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 1rem;
+  font-weight: 600;
   cursor: pointer;
 }
 
-.board-slot-empty:active { background: var(--border); }
+/* Collage — CSS multi-column masonry, not a grid: each note's height is
+   intrinsic to its own content (see .note-body below, no more line-clamp),
+   so a short "Happy birthday!" and a long paragraph both just take the
+   space they actually need instead of being forced into a uniform cell.
+   column-width is a MINIMUM target, not a fixed count — the browser fits
+   as many as it can, which is also what makes this responsive for free:
+   a narrow phone naturally ends up with exactly one column (a plain
+   stacked feed), no separate mobile-specific layout needed. */
+.board-collage {
+  column-width: 240px;
+  column-gap: 16px;
+  padding: 16px;
+}
 
 @keyframes note-pop-in {
   from { opacity: 0; transform: scale(0.85); }
@@ -46,19 +46,19 @@
 
 .note {
   position: relative;
-  width: 100%;
-  height: 100%;
   box-sizing: border-box;
   padding: 12px 10px 8px;
   border-radius: 6px;
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12);
   display: flex;
   flex-direction: column;
-  /* Not overflow:hidden here — .note-body already clips long text via
-     line-clamp below, and the "tape" border style deliberately sticks out
-     above the note's own top edge, which overflow:hidden would clip off. */
   animation: note-pop-in 0.35s ease-out both;
   cursor: default;
+  /* Multi-column layout children need this or a browser may split one note
+     across two columns mid-text. margin-bottom (not the column-gap alone)
+     is what actually separates stacked notes within the same column. */
+  break-inside: avoid;
+  margin-bottom: 16px;
 }
 
 .note-border-solid { border: 2px solid rgba(0, 0, 0, 0.25); }
@@ -76,32 +76,28 @@
   border: 1px solid rgba(0, 0, 0, 0.08);
 }
 
+/* A real flex item now, not position:absolute — reserves its own space at
+   the top instead of floating over wherever the first line of text happens
+   to be, which is what was overlapping the sticker with the message text
+   before. align-self: flex-end keeps it visually in the same top-right
+   corner as before. */
 .note-decoration {
-  position: absolute;
-  top: 4px;
-  right: 6px;
+  align-self: flex-end;
   font-size: 1.3rem;
+  line-height: 1;
+  margin-bottom: 2px;
 }
 
 .note-body {
-  flex: 1;
   margin: 4px 0 6px;
   font-size: 0.85rem;
   line-height: 1.28;
-  overflow: hidden;
-  display: -webkit-box;
-  -webkit-line-clamp: 11;
-  -webkit-box-orient: vertical;
   color: #2a2622;
-  /* Long single "words" (URLs, no-space runs) shouldn't push the note wider
-     than its grid cell. */
+  /* No line-clamp — a note's card now grows to fit however much someone
+     wrote instead of truncating it (previously fixed to a uniform grid
+     cell's height, which is why longer messages never visibly "expanded"). */
   overflow-wrap: break-word;
-}
-
-/* Used inside #view-dialog only — the full message, no truncation. */
-.note-body-expanded {
-  -webkit-line-clamp: unset;
-  overflow: visible;
+  white-space: pre-wrap;
 }
 
 .note-signature {
@@ -115,12 +111,6 @@
 .note-mine {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
-  cursor: pointer;
-}
-
-/* Someone else's note, long enough to be clamped — tap opens the read-only
-   view-dialog instead (see openView() in board.html). */
-.note-viewable {
   cursor: pointer;
 }
 
@@ -169,30 +159,12 @@ dialog#compose-dialog::backdrop {
   padding: 0;
 }
 
+/* No fixed height — the live preview should grow/shrink with the actual
+   text exactly like a real collage note does now, not stay pinned to the
+   old grid card's dimensions. */
 #note-preview-wrap {
   width: 210px;
-  height: 242px;
   margin: 4px 0 8px;
-}
-
-/* View dialog — read-only, full text, sized to fit a longer message rather
-   than the fixed square grid card. */
-dialog#view-dialog {
-  width: min(360px, 92vw);
-  border: none;
-  border-radius: 12px;
-  padding: 20px;
-  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.2);
-}
-
-dialog#view-dialog::backdrop {
-  background: rgba(0, 0, 0, 0.4);
-}
-
-#view-note-wrap .note {
-  aspect-ratio: auto;
-  min-height: 160px;
-  height: auto;
 }
 
 .dialog-actions {
@@ -216,7 +188,7 @@ dialog#view-dialog::backdrop {
 .dialog-actions .danger-link { background: none; color: #b3261e; padding: 0; }
 
 @media (hover: hover) {
-  .board-slot-empty:hover { background: var(--border); }
+  #add-btn:hover { filter: brightness(1.08); }
   .swatch:not(.swatch-selected):hover { border-color: var(--text-muted); }
   .dialog-actions button[type="submit"]:hover { filter: brightness(1.08); }
   .dialog-actions #cancel-btn:hover { background: #ddd8cf; }

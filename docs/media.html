@@ -88,6 +88,12 @@
   await syncLanguageFromProfile(supabaseClient, myId);
   const dict = await applyStoredLanguage();
 
+  // Only gates whether the delete button renders — the real enforcement is
+  // RLS (media_write requires is_admin() at the database level), same as
+  // the admin comments dashboard.
+  const { data: myProfile } = await supabaseClient.from('profiles').select('is_admin').eq('id', myId).single();
+  const isAdmin = !!myProfile?.is_admin;
+
   const stage = document.getElementById('stage');
   const status = document.getElementById('status');
   const drawer = document.getElementById('comments-drawer');
@@ -276,6 +282,11 @@
       const actionBar = await createActionBar({
         supabaseClient, mediaId, userId: myId,
         onOpenComments: () => drawer.showModal(),
+        isAdmin, dict, t,
+        // The item is gone — nothing left on this page to show. backLink
+        // already points at the right destination (Gallery or Timeline,
+        // whichever this was actually opened from).
+        onDeleted: () => { window.location.href = backLink.href; },
       });
       stage.appendChild(actionBar.element);
 

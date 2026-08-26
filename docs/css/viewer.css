@@ -141,6 +141,13 @@ body:has(.viewer-stage) main, body:has(.reel-feed) main {
   line-height: 1;
 }
 
+/* Admin-only delete — set apart from favorite/like/comment (which are
+   things anyone can do) with the same danger red used elsewhere on the
+   site (settings' danger zone, error text), so it doesn't read as just a
+   fourth, equally-casual reaction button. */
+.action-btn-delete { color: #ff6b5e; }
+.action-btn-delete .action-icon { filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.6)); }
+
 /* .action-bar qualifier, not just .icon-img alone — needs to outrank
    ".viewer-stage img" (the rule sizing the actual photo/video) in
    specificity, since these icons are ALSO nested inside .viewer-stage and

@@ -69,7 +69,6 @@
   },
   "board": {
     "loading": "Loading…",
-    "add_placeholder_label": "Add your message here",
     "compose_heading_add": "Add your message",
     "compose_heading_edit": "Edit your message",
     "message_label": "Message",
@@ -82,11 +81,9 @@
     "remove_btn": "Remove my message",
     "cancel_btn": "Cancel",
     "save_btn": "Save",
-    "close_btn": "Close",
     "signature_someone": "Someone",
     "tap_to_edit": "Tap to edit your message",
-    "tap_to_read": "Tap to read the full message",
-    "error_slot_taken": "Someone just took that spot — pick another.",
+    "error_already_posted": "You've already added a message — refreshing…",
     "error_save": "Could not save — please try again.",
     "confirm_remove": "Remove your message from the board?",
     "font_default": "Plain",
@@ -112,7 +109,9 @@
     "back_gallery": "← Gallery",
     "back_timeline": "← Timeline",
     "prev": "‹ Prev",
-    "next": "Next ›"
+    "next": "Next ›",
+    "confirm_delete": "Delete this photo/video? This removes it everywhere on the site and cannot be undone.",
+    "delete_error": "Could not delete — please try again."
   },
   "comments": {
     "heading": "Comments",

@@ -130,9 +130,6 @@ create table boards (
   slug text unique not null,
   title text not null,
   subtitle text,
-  -- Fixed count of numbered spots — a responsive CSS grid reflows columns per
-  -- screen size, but spot claims stay stable and collision-proof regardless.
-  slot_count int not null,
   created_at timestamptz not null default now()
 );
 
@@ -140,7 +137,6 @@ create table board_messages (
   id uuid primary key default gen_random_uuid(),
   board_id uuid not null references boards(id) on delete cascade,
   user_id uuid not null references profiles(id) on delete cascade,
-  slot_index int not null,
   body text not null,
   font text not null default 'default',
   note_color text not null default 'yellow',
@@ -148,10 +144,11 @@ create table board_messages (
   decoration text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
-  -- One message per person per board, one occupant per spot — enforced here,
-  -- not just the UI, so a race condition can't create either.
-  unique (board_id, user_id),
-  unique (board_id, slot_index)
+  -- One message per person per board — enforced here, not just the UI, so a
+  -- race condition (e.g. double-submit) can't create two. No slot/position
+  -- concept — notes render in a CSS-masonry collage, ordered by created_at,
+  -- sized to their own content rather than claiming a numbered grid cell.
+  unique (board_id, user_id)
 );
 
 create index board_messages_board_id_idx on board_messages (board_id);

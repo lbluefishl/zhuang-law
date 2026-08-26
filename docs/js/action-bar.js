@@ -1,12 +1,28 @@
 import { wireReactionButton } from './reaction-button.js';
 import { loadLikeState, setLiked, loadVisibleCommentCount } from './comments.js';
 import { isFavorited, setFavorited } from './favorites.js';
-import { heartIcon, starIcon, commentIcon } from './icons.js';
+import { heartIcon, starIcon, commentIcon, trashIcon } from './icons.js';
+
+// Deletes the media row itself — RLS (media_write) already restricts this
+// to is_admin() at the database level, so this is a normal client call, not
+// a privileged RPC. Cascades to comments/likes/favorites/tags for this item
+// automatically (all `on delete cascade` in schema.sql). This does NOT
+// touch the underlying R2 files (original + thumbnail) — the browser never
+// holds R2 credentials, only the pipeline does — so a deleted item is fully
+// gone from the site immediately, but its files become orphaned in storage
+// until a separate cleanup pass (see pipeline's find-orphaned-rows-style
+// scripts) sweeps them.
+export async function deleteMedia(supabaseClient, mediaId) {
+  const { error } = await supabaseClient.from('media').delete().eq('id', mediaId);
+  if (error) throw error;
+}
 
 // The right-side TikTok-style action column: favorite, like, comment-count
-// (tapping it opens the caller's comment drawer). Shared between media.html
-// and reel.html so the two don't drift out of sync with each other.
-export async function createActionBar({ supabaseClient, mediaId, userId, onOpenComments }) {
+// (tapping it opens the caller's comment drawer), and — admin only — delete.
+// Shared between media.html and reel.html so the two don't drift out of
+// sync with each other. `dict`/`t` are only needed for the delete
+// confirm/error text; omit `isAdmin` (or pass false) and neither is required.
+export async function createActionBar({ supabaseClient, mediaId, userId, onOpenComments, isAdmin = false, onDeleted, dict, t }) {
   const bar = document.createElement('div');
   bar.className = 'action-bar';
 
@@ -86,6 +102,27 @@ export async function createActionBar({ supabaseClient, mediaId, userId, onOpenC
   }
   renderCommentCount(commentCount);
   commentBtn.addEventListener('click', onOpenComments);
+
+  if (isAdmin) {
+    const deleteBtn = document.createElement('button');
+    deleteBtn.type = 'button';
+    deleteBtn.className = 'action-btn action-btn-delete';
+    deleteBtn.setAttribute('aria-label', 'Delete');
+    const icon = document.createElement('span');
+    icon.className = 'action-icon';
+    icon.innerHTML = trashIcon();
+    deleteBtn.appendChild(icon);
+    deleteBtn.addEventListener('click', async () => {
+      if (!confirm(t(dict, 'media.confirm_delete'))) return;
+      try {
+        await deleteMedia(supabaseClient, mediaId);
+        onDeleted?.();
+      } catch {
+        alert(t(dict, 'media.delete_error'));
+      }
+    });
+    bar.appendChild(deleteBtn);
+  }
 
   return {
     element: bar,

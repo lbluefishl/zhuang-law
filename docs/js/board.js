@@ -26,20 +26,23 @@ export async function loadBoard(supabaseClient, slug) {
   return data;
 }
 
+// Oldest first — a birthday-poster reads naturally as "everyone who left a
+// note, in the order they left it," and it's what the collage lays out
+// top-to-bottom/left-to-right in board.html.
 export async function loadMessages(supabaseClient, boardId) {
   const { data, error } = await supabaseClient
     .from('board_messages')
-    .select('id, slot_index, body, font, note_color, border_style, decoration, user_id, profiles(display_name)')
-    .eq('board_id', boardId);
+    .select('id, body, font, note_color, border_style, decoration, user_id, created_at, profiles(display_name)')
+    .eq('board_id', boardId)
+    .order('created_at', { ascending: true });
   if (error) throw error;
   return data;
 }
 
-export async function upsertMyMessage(supabaseClient, { boardId, userId, existingId, slotIndex, body, font, noteColor, borderStyle, decoration }) {
+export async function upsertMyMessage(supabaseClient, { boardId, userId, existingId, body, font, noteColor, borderStyle, decoration }) {
   const row = {
     board_id: boardId,
     user_id: userId,
-    slot_index: slotIndex,
     body,
     font,
     note_color: noteColor,
@@ -53,7 +56,8 @@ export async function upsertMyMessage(supabaseClient, { boardId, userId, existin
   } else {
     const { error } = await supabaseClient.from('board_messages').insert(row);
     if (error) {
-      if (error.code === '23505') throw new Error('SLOT_TAKEN'); // unique constraint race
+      // unique(board_id, user_id) race — e.g. submitted from two tabs at once.
+      if (error.code === '23505') throw new Error('ALREADY_POSTED');
       throw error;
     }
   }

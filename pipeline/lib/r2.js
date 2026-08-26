@@ -1,4 +1,4 @@
-import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
+import { S3Client, PutObjectCommand, DeleteObjectsCommand } from '@aws-sdk/client-s3';
 
 export function createR2Client() {
   return new S3Client({
@@ -25,5 +25,19 @@ export async function uploadToR2(client, key, body, contentType) {
     // changes — a relative reopening the site later re-downloads photos
     // they already viewed instead of getting them instantly from cache.
     CacheControl: 'public, max-age=31536000, immutable',
+  }));
+}
+
+// Batched (up to 1000 keys per S3 DeleteObjects call) — used both by one-off
+// cleanup scripts and to actually scrub R2 after an admin deletes a media
+// row from the website (the browser never holds R2 credentials, so that
+// path only removes the Supabase row itself; this is what a follow-up sweep
+// uses to catch up on the actual files).
+export async function deleteFromR2(client, keys) {
+  const nonEmpty = keys.filter(Boolean);
+  if (!nonEmpty.length) return;
+  await client.send(new DeleteObjectsCommand({
+    Bucket: process.env.R2_BUCKET_NAME,
+    Delete: { Objects: nonEmpty.map((Key) => ({ Key })) },
   }));
 }

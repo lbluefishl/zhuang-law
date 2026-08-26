@@ -50,6 +50,12 @@
   await syncLanguageFromProfile(supabaseClient, myId);
   const dict = await applyStoredLanguage();
 
+  // Only gates whether the delete button renders — the real enforcement is
+  // RLS (media_write requires is_admin() at the database level), same as
+  // the admin comments dashboard.
+  const { data: myProfile } = await supabaseClient.from('profiles').select('is_admin').eq('id', myId).single();
+  const isAdmin = !!myProfile?.is_admin;
+
   const status = document.getElementById('status');
   const feed = document.getElementById('reel-feed');
   const drawer = document.getElementById('comments-drawer');
@@ -143,6 +149,15 @@
         activeBarForCount = actionBar;
         thread.refresh();
         drawer.showModal();
+      },
+      isAdmin, dict, t,
+      // Reel is a continuous scroll, not a single-item page like
+      // media.html — just drop this one slide out of the feed rather than
+      // navigating away from the rest of it.
+      onDeleted: () => {
+        observer.unobserve(slide);
+        slide.querySelector('video')?.pause();
+        slide.remove();
       },
     });
     slide.appendChild(actionBar.element);

@@ -23,9 +23,10 @@
   <header class="board-header" id="board-header" hidden>
     <h1 id="board-title"></h1>
     <p id="board-subtitle"></p>
+    <button type="button" id="add-btn" data-i18n="board.compose_heading_add">Add your message</button>
   </header>
 
-  <div class="board-grid" id="board-grid" hidden></div>
+  <div class="board-collage" id="board-collage" hidden></div>
 </main>
 
 <dialog id="compose-dialog">
@@ -62,14 +63,6 @@
   </form>
 </dialog>
 
-<dialog id="view-dialog">
-  <div id="view-note-wrap"></div>
-  <div class="dialog-actions">
-    <span class="spacer"></span>
-    <button type="button" id="view-close-btn" data-i18n="board.close_btn">Close</button>
-  </div>
-</dialog>
-
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.0/dist/umd/supabase.js"></script>
 <script type="module">
   import { supabaseClient } from './js/supabase-client.js';
@@ -96,10 +89,10 @@
 
   const status = document.getElementById('status');
   const header = document.getElementById('board-header');
-  const grid = document.getElementById('board-grid');
+  const addBtn = document.getElementById('add-btn');
+  const collage = document.getElementById('board-collage');
   const dialog = document.getElementById('compose-dialog');
   const composeForm = document.getElementById('compose-form');
-  const viewDialog = document.getElementById('view-dialog');
 
   document.getElementById('message-body').maxLength = MAX_MESSAGE_LENGTH;
 
@@ -114,7 +107,11 @@
     };
   }
 
-  function renderNote(container, msg, { mine, expanded = false }) {
+  // No more "expanded"/clamped modes — every note (collage or compose
+  // preview) always shows its full text now. A collage note's height is
+  // intrinsic to its own content (CSS multi-column masonry, see board.css),
+  // not a fixed grid cell forcing a line-clamp truncation.
+  function renderNote(container, msg, { mine }) {
     const note = document.createElement('div');
     note.className = `note note-border-${msg.border_style}`;
     const style = noteStyle(msg.font, msg.note_color, msg.border_style);
@@ -135,13 +132,8 @@
     }
 
     const body = document.createElement('p');
-    // At the 1000-char length, most messages won't fully fit in the grid
-    // card — expanded (used inside view-dialog) drops the line-clamp so the
-    // full text shows there instead. msg.body itself is exactly what the
-    // person typed — never run through translation (see feedback: board
-    // messages keep whatever language they were written in).
-    body.className = expanded ? 'note-body note-body-expanded' : 'note-body';
-    body.textContent = msg.body;
+    body.className = 'note-body';
+    body.textContent = msg.body; // the author's own words — never translated
     note.appendChild(body);
 
     const sig = document.createElement('p');
@@ -152,25 +144,10 @@
     if (mine) {
       note.classList.add('note-mine');
       note.title = t(dict, 'board.tap_to_edit');
-      note.addEventListener('click', () => openCompose(msg.slot_index, msg));
-    } else if (msg.id && !expanded) {
-      // msg.id distinguishes a real board row from the live preview stub
-      // rendered inside the compose dialog (which has no id).
-      note.classList.add('note-viewable');
-      note.title = t(dict, 'board.tap_to_read');
-      note.addEventListener('click', () => openView(msg));
+      note.addEventListener('click', () => openCompose(msg));
     }
     container.appendChild(note);
   }
-
-  function openView(msg) {
-    const wrap = document.getElementById('view-note-wrap');
-    wrap.innerHTML = '';
-    renderNote(wrap, msg, { mine: false, expanded: true });
-    viewDialog.showModal();
-  }
-
-  document.getElementById('view-close-btn').addEventListener('click', () => viewDialog.close());
 
   async function render() {
     board = await loadBoard(supabaseClient, BOARD_SLUG);
@@ -184,31 +161,19 @@
     document.getElementById('board-subtitle').textContent = board.subtitle || '';
     header.hidden = false;
     status.remove?.();
-    grid.hidden = false;
-    grid.innerHTML = '';
 
-    const bySlot = new Map(messages.map((m) => [m.slot_index, m]));
-    for (let i = 0; i < board.slot_count; i++) {
-      const slotEl = document.createElement('div');
-      slotEl.className = 'board-slot';
-      const msg = bySlot.get(i);
-      if (msg) {
-        renderNote(slotEl, msg, { mine: msg.user_id === myId });
-      } else if (!myMessage) {
-        const empty = document.createElement('button');
-        empty.type = 'button';
-        empty.className = 'board-slot-empty';
-        empty.textContent = '+';
-        empty.setAttribute('aria-label', t(dict, 'board.add_placeholder_label'));
-        empty.addEventListener('click', () => openCompose(i, null));
-        slotEl.appendChild(empty);
-      }
-      grid.appendChild(slotEl);
+    // One button, shown only if you haven't posted yet — once you have,
+    // your own note is right there in the collage (tap it to edit).
+    addBtn.hidden = !!myMessage;
+
+    collage.hidden = false;
+    collage.innerHTML = '';
+    for (const msg of messages) {
+      renderNote(collage, msg, { mine: msg.user_id === myId });
     }
   }
 
   // --- Compose dialog ---
-  let composeSlot = null;
   let composeState = { font: 'default', color: 'yellow', border: 'solid', decoration: '' };
 
   function buildSwatchRow(rowEl, options, currentKey, render, onPick) {
@@ -243,8 +208,7 @@
     }, { mine: false });
   }
 
-  function openCompose(slotIndex, existing) {
-    composeSlot = slotIndex;
+  function openCompose(existing) {
     composeState = existing
       ? { font: existing.font, color: existing.note_color, border: existing.border_style, decoration: existing.decoration || '' }
       : { font: 'default', color: 'yellow', border: 'solid', decoration: '' };
@@ -278,6 +242,8 @@
     dialog.showModal();
   }
 
+  addBtn.addEventListener('click', () => openCompose(null));
+
   document.getElementById('message-body').addEventListener('input', (e) => {
     document.getElementById('char-count').textContent = `${e.target.value.length} / ${MAX_MESSAGE_LENGTH}`;
     updatePreview();
@@ -304,7 +270,6 @@
         boardId: board.id,
         userId: myId,
         existingId: myMessage?.id || null,
-        slotIndex: composeSlot,
         body,
         font: composeState.font,
         noteColor: composeState.color,
@@ -314,10 +279,10 @@
       dialog.close();
       await render();
     } catch (err) {
-      errorEl.textContent = err.message === 'SLOT_TAKEN'
-        ? t(dict, 'board.error_slot_taken')
+      errorEl.textContent = err.message === 'ALREADY_POSTED'
+        ? t(dict, 'board.error_already_posted')
         : t(dict, 'board.error_save');
-      if (err.message === 'SLOT_TAKEN') { dialog.close(); await render(); }
+      if (err.message === 'ALREADY_POSTED') { dialog.close(); await render(); }
     }
   });
 
