@@ -162,3 +162,30 @@ create table favorites (
   created_at timestamptz not null default now(),
   primary key (media_id, user_id)
 );
+
+-- Admin delete (docs/js/action-bar.js) only removes the media row itself --
+-- the browser never holds R2 credentials, so this queues the keys at the
+-- moment of deletion and pipeline/flush-r2-deletions.js sweeps them out of
+-- R2 afterward. See add-r2-delete-queue.sql for the full explanation.
+create table pending_r2_deletions (
+  id bigint generated always as identity primary key,
+  r2_key text,
+  thumb_key text,
+  deleted_at timestamptz not null default now()
+);
+
+alter table pending_r2_deletions enable row level security;
+
+create or replace function public.queue_r2_cleanup() returns trigger
+language plpgsql
+security definer set search_path = public
+as $$
+begin
+  insert into pending_r2_deletions (r2_key, thumb_key) values (old.r2_key, old.thumb_key);
+  return old;
+end;
+$$;
+
+create trigger media_queue_r2_cleanup
+  after delete on media
+  for each row execute function public.queue_r2_cleanup();

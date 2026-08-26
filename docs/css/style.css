@@ -205,6 +205,11 @@ h1 { font-size: 1.3rem; margin: 0 0 16px; }
   .media-grid { grid-template-columns: repeat(6, 1fr); }
 }
 
+.grid-sentinel {
+  grid-column: 1 / -1;
+  height: 1px;
+}
+
 .media-grid a {
   position: relative;
   display: block;

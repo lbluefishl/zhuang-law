@@ -105,37 +105,71 @@
     views: (a, b) => (b.view_count || 0) - (a.view_count || 0),
   };
 
-  function renderGrid(items) {
-    const sorted = [...items].sort(SORTERS[document.getElementById('sort-select').value]);
+  function buildTile(item) {
+    const a = document.createElement('a');
+    a.href = `media.html?id=${item.id}&from=gallery`;
+    a.dataset.mediaId = item.id;
 
+    const img = document.createElement('img');
+    img.src = `${R2_PUBLIC_URL}/${item.thumb_key}`;
+    img.loading = 'lazy';
+    img.alt = '';
+    a.appendChild(img);
+
+    if (item.media_type === 'video') {
+      const badge = document.createElement('span');
+      badge.className = 'video-badge';
+      badge.textContent = '▶';
+      a.appendChild(badge);
+    }
+
+    return a;
+  }
+
+  // Infinite scroll: the metadata fetch above still pulls every row (needed
+  // for tab switching and sorting by likes/comments/views, and cheap even at
+  // ~1000 rows), but building ~1000 DOM tiles up front was the actual cost —
+  // this renders a batch at a time and only builds the next batch once a
+  // sentinel near the bottom of the grid scrolls into view, same idea as a
+  // feed that loads more as you go rather than a page you click through.
+  const BATCH_SIZE = 60;
+  let currentSorted = [];
+  let renderedCount = 0;
+  let sentinelObserver = null;
+
+  function renderNextBatch() {
+    grid.querySelector('.grid-sentinel')?.remove();
+    sentinelObserver?.disconnect();
+
+    const batch = currentSorted.slice(renderedCount, renderedCount + BATCH_SIZE);
+    for (const item of batch) grid.appendChild(buildTile(item));
+    renderedCount += batch.length;
+
+    if (renderedCount < currentSorted.length) {
+      const sentinel = document.createElement('div');
+      sentinel.className = 'grid-sentinel';
+      grid.appendChild(sentinel);
+      sentinelObserver = new IntersectionObserver((entries) => {
+        if (entries[0].isIntersecting) renderNextBatch();
+      }, { rootMargin: '600px' });
+      sentinelObserver.observe(sentinel);
+    }
+  }
+
+  function renderGrid(items) {
+    currentSorted = [...items].sort(SORTERS[document.getElementById('sort-select').value]);
+    renderedCount = 0;
     grid.innerHTML = '';
-    if (sorted.length === 0) {
+    sentinelObserver?.disconnect();
+    sentinelObserver = null;
+
+    if (currentSorted.length === 0) {
       status.textContent = t(dict, 'gallery.empty');
       status.hidden = false;
-    } else {
-      status.hidden = true;
+      return;
     }
-
-    for (const item of sorted) {
-      const a = document.createElement('a');
-      a.href = `media.html?id=${item.id}&from=gallery`;
-      a.dataset.mediaId = item.id;
-
-      const img = document.createElement('img');
-      img.src = `${R2_PUBLIC_URL}/${item.thumb_key}`;
-      img.loading = 'lazy';
-      img.alt = '';
-      a.appendChild(img);
-
-      if (item.media_type === 'video') {
-        const badge = document.createElement('span');
-        badge.className = 'video-badge';
-        badge.textContent = '▶';
-        a.appendChild(badge);
-      }
-
-      grid.appendChild(a);
-    }
+    status.hidden = true;
+    renderNextBatch();
   }
 
   function currentItems() {
@@ -158,8 +192,15 @@
   // Coming back from a photo — scroll to where it actually was instead of
   // resetting to the top. No smooth-scroll animation; this should feel like
   // picking back up where you left off, not drawing attention to itself.
+  // With batched rendering the target tile may not exist in the DOM yet, so
+  // catch up synchronously (bypassing the scroll-triggered observer) before
+  // scrolling to it.
   const scrollTo = new URLSearchParams(window.location.search).get('scrollTo');
   if (scrollTo) {
+    const targetIndex = currentSorted.findIndex((m) => m.id === scrollTo);
+    while (targetIndex >= renderedCount && renderedCount < currentSorted.length) {
+      renderNextBatch();
+    }
     grid.querySelector(`[data-media-id="${scrollTo}"]`)?.scrollIntoView({ block: 'center' });
   }
 </script>
