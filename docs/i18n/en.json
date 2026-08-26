@@ -31,7 +31,7 @@
   "nav": {
     "gallery": "Gallery",
     "timeline": "Timeline",
-    "board": "Board",
+    "board": "Card",
     "reel": "Reel",
     "cats": "Fiyero & Satine",
     "settings": "Settings",
@@ -85,7 +85,7 @@
     "tap_to_edit": "Tap to edit your message",
     "error_already_posted": "You've already added a message — refreshing…",
     "error_save": "Could not save — please try again.",
-    "confirm_remove": "Remove your message from the board?",
+    "confirm_remove": "Remove your message from the card?",
     "font_default": "Plain",
     "font_handwriting": "Handwriting",
     "font_script": "Script",

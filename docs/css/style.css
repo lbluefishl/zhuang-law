@@ -86,7 +86,7 @@ img, video {
 .site-nav .spacer { flex: 1; }
 
 /* Settings + Sign out are account-management actions, not the main features
-   (Gallery/Timeline/Board/Reel) — grouped on the right and visually toned
+   (Gallery/Timeline/Card/Reel) — grouped on the right and visually toned
    down (lighter weight, muted color) so they read as secondary. */
 .site-nav .sign-out, .site-nav .nav-secondary { color: var(--text-muted); font-weight: 400; }
 .site-nav .nav-secondary[aria-current="page"] { color: var(--text); background: var(--border); font-weight: 600; }

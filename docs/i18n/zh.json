@@ -31,7 +31,7 @@
   "nav": {
     "gallery": "相册",
     "timeline": "时间线",
-    "board": "留言板",
+    "board": "贺卡",
     "reel": "短片",
     "cats": "Fiyero & Satine",
     "settings": "设置",
@@ -85,7 +85,7 @@
     "tap_to_edit": "点击编辑你的留言",
     "error_already_posted": "你已经添加过留言了——正在刷新…",
     "error_save": "保存失败,请重试。",
-    "confirm_remove": "要从留言板上删除你的留言吗?",
+    "confirm_remove": "要从贺卡上删除你的留言吗?",
     "font_default": "普通",
     "font_handwriting": "手写体",
     "font_script": "花体",
