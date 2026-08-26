@@ -1,8 +1,8 @@
 .board-page { padding-bottom: 40px; }
 
 /* The wide-page max-width override for this page now lives in style.css,
-   grouped with the other pages that get the same treatment (Gallery,
-   Timeline, media viewer, Reel). */
+   grouped with the other pages that get the same treatment (River,
+   Current, media viewer, Stream). */
 
 .board-header {
   text-align: center;

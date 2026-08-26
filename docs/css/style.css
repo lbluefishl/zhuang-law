@@ -27,8 +27,8 @@ body {
 }
 
 /* Wider cap for content that genuinely benefits from more room on a real
-   monitor: Gallery/Timeline's photo grids (#grid/#timeline), the media
-   viewer (.viewer-stage), Reel (.reel-feed), and the message board
+   monitor: River/Current's photo grids (#grid/#timeline), the media
+   viewer (.viewer-stage), Stream (.reel-feed), and the message well
    (.board-page). Doesn't affect mobile — only matters once the viewport
    actually exceeds it. */
 body:has(#grid), body:has(#timeline), body:has(.viewer-stage),
@@ -86,7 +86,7 @@ img, video {
 .site-nav .spacer { flex: 1; }
 
 /* Settings + Sign out are account-management actions, not the main features
-   (Gallery/Timeline/Card/Reel) — grouped on the right and visually toned
+   (River/Current/Well/Stream) — grouped on the right and visually toned
    down (lighter weight, muted color) so they read as secondary. */
 .site-nav .sign-out, .site-nav .nav-secondary { color: var(--text-muted); font-weight: 400; }
 .site-nav .nav-secondary[aria-current="page"] { color: var(--text); background: var(--border); font-weight: 600; }
@@ -183,8 +183,8 @@ h1 { font-size: 1.3rem; margin: 0 0 16px; }
   margin-right: 2px;
 }
 
-/* Gallery grid — 3 columns is the mobile default (unchanged); the wider
-   body cap above (Gallery/Timeline) would otherwise just inflate these same
+/* Photo grid — 3 columns is the mobile default (unchanged); the wider
+   body cap above (River/Current) would otherwise just inflate these same
    3 tiles to an oversized fixed width instead of actually showing more
    photos per row, so more columns step in as the viewport grows. */
 .media-grid {
@@ -239,7 +239,7 @@ h1 { font-size: 1.3rem; margin: 0 0 16px; }
   border-radius: 4px;
 }
 
-/* Timeline */
+/* Current (age timeline) */
 .timeline-group { margin-bottom: 28px; }
 
 /* Sticky, right below .timeline-nav (also sticky, at top: 57px, below the

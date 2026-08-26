@@ -5,12 +5,12 @@
 <link rel="stylesheet" href="css/viewer.css">
 
 <nav class="site-nav">
-  <a href="gallery.html" data-i18n="nav.gallery">Gallery</a>
-  <a href="timeline.html" data-i18n="nav.timeline">Timeline</a>
-  <a href="board.html" data-i18n="nav.board">Card</a>
-  <a href="reel.html" data-i18n="nav.reel">Reel</a>
-  <a href="cats.html" data-i18n="nav.cats">Fiyero &amp; Satine</a>
+  <a href="gallery.html" data-i18n="nav.gallery">River</a>
+  <a href="timeline.html" data-i18n="nav.timeline">Current</a>
+  <a href="board.html" data-i18n="nav.board">Well</a>
+  <a href="reel.html" data-i18n="nav.reel">Stream</a>
   <span class="spacer"></span>
+  <a href="cats.html" class="nav-secondary" data-i18n="nav.cats">Fiyero &amp; Satine</a>
   <a href="settings.html" class="nav-secondary" data-i18n="nav.settings">Settings</a>
   <button class="sign-out" data-sign-out data-i18n="nav.sign_out">Sign out</button>
 </nav>
@@ -44,7 +44,7 @@
     var mediaId = params.get('id');
     var link = document.getElementById('back-link');
     link.href = mediaId ? (from + '.html?scrollTo=' + mediaId) : (from + '.html');
-    link.textContent = from === 'timeline' ? '← Timeline' : '← Gallery';
+    link.textContent = from === 'timeline' ? '← Current' : '← River';
   })();
 </script>
 

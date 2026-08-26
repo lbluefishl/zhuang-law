@@ -29,16 +29,16 @@
     "error_generic": "出了点问题,请重试。"
   },
   "nav": {
-    "gallery": "相册",
-    "timeline": "时间线",
-    "board": "贺卡",
-    "reel": "短片",
+    "gallery": "River",
+    "timeline": "水流",
+    "board": "许愿井",
+    "reel": "溪流",
     "cats": "Fiyero & Satine",
     "settings": "设置",
     "sign_out": "退出登录"
   },
   "gallery": {
-    "title": "相册",
+    "title": "River",
     "tab_all": "全部",
     "tab_favorites": "收藏",
     "sort_label": "排序方式",
@@ -53,7 +53,7 @@
     "error_media": "无法加载照片。"
   },
   "timeline": {
-    "title": "时间线",
+    "title": "水流",
     "loading": "加载中…",
     "empty": "这里还没有内容。",
     "empty_no_birthdate": "尚未为这个相册设置出生日期。",
@@ -85,7 +85,7 @@
     "tap_to_edit": "点击编辑你的留言",
     "error_already_posted": "你已经添加过留言了——正在刷新…",
     "error_save": "保存失败,请重试。",
-    "confirm_remove": "要从贺卡上删除你的留言吗?",
+    "confirm_remove": "要删除你的留言吗?",
     "font_default": "普通",
     "font_handwriting": "手写体",
     "font_script": "花体",
@@ -106,8 +106,8 @@
   "media": {
     "error_no_id": "未指定照片。",
     "error_not_found": "找不到这张照片。",
-    "back_gallery": "← 相册",
-    "back_timeline": "← 时间线",
+    "back_gallery": "← River",
+    "back_timeline": "← 水流",
     "prev": "‹ 上一个",
     "next": "下一个 ›",
     "confirm_delete": "删除这张照片/视频?这会在网站上的所有地方移除它,且无法撤销。",

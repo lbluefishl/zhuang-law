@@ -29,16 +29,16 @@
     "error_generic": "出咗啲問題,請再試一次。"
   },
   "nav": {
-    "gallery": "相簿",
-    "timeline": "時間線",
-    "board": "賀卡",
-    "reel": "短片",
+    "gallery": "River",
+    "timeline": "水流",
+    "board": "許願井",
+    "reel": "溪流",
     "cats": "Fiyero & Satine",
     "settings": "設定",
     "sign_out": "登出"
   },
   "gallery": {
-    "title": "相簿",
+    "title": "River",
     "tab_all": "全部",
     "tab_favorites": "收藏",
     "sort_label": "排序方式",
@@ -53,7 +53,7 @@
     "error_media": "載入唔到相片。"
   },
   "timeline": {
-    "title": "時間線",
+    "title": "水流",
     "loading": "載入緊…",
     "empty": "呢度暫時未有嘢。",
     "empty_no_birthdate": "呢個相簿仲未設定出生日期。",
@@ -85,7 +85,7 @@
     "tap_to_edit": "撳一下改你嘅留言",
     "error_already_posted": "你已經加咗留言喇——刷新緊…",
     "error_save": "儲存唔到,請再試一次。",
-    "confirm_remove": "要喺賀卡度刪除你嘅留言?",
+    "confirm_remove": "要刪除你嘅留言?",
     "font_default": "正常",
     "font_handwriting": "手寫體",
     "font_script": "花體",
@@ -106,8 +106,8 @@
   "media": {
     "error_no_id": "未指定相片。",
     "error_not_found": "揾唔到呢張相片。",
-    "back_gallery": "← 相簿",
-    "back_timeline": "← 時間線",
+    "back_gallery": "← River",
+    "back_timeline": "← 水流",
     "prev": "‹ 上一張",
     "next": "下一張 ›",
     "confirm_delete": "刪除呢張相/片?會喺網站所有地方一齊移除,冇得返轉頭。",

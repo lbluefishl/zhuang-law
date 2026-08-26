@@ -29,16 +29,16 @@
     "error_generic": "Something went wrong — please try again."
   },
   "nav": {
-    "gallery": "Gallery",
-    "timeline": "Timeline",
-    "board": "Card",
-    "reel": "Reel",
+    "gallery": "River",
+    "timeline": "Current",
+    "board": "Well",
+    "reel": "Stream",
     "cats": "Fiyero & Satine",
     "settings": "Settings",
     "sign_out": "Sign out"
   },
   "gallery": {
-    "title": "Gallery",
+    "title": "River",
     "tab_all": "All",
     "tab_favorites": "Favorites",
     "sort_label": "Sort by",
@@ -53,7 +53,7 @@
     "error_media": "Could not load photos."
   },
   "timeline": {
-    "title": "Timeline",
+    "title": "Current",
     "loading": "Loading…",
     "empty": "Nothing here yet.",
     "empty_no_birthdate": "No birth date set for this collection yet.",
@@ -85,7 +85,7 @@
     "tap_to_edit": "Tap to edit your message",
     "error_already_posted": "You've already added a message — refreshing…",
     "error_save": "Could not save — please try again.",
-    "confirm_remove": "Remove your message from the card?",
+    "confirm_remove": "Remove your message?",
     "font_default": "Plain",
     "font_handwriting": "Handwriting",
     "font_script": "Script",
@@ -106,8 +106,8 @@
   "media": {
     "error_no_id": "No photo specified.",
     "error_not_found": "Could not find that photo.",
-    "back_gallery": "← Gallery",
-    "back_timeline": "← Timeline",
+    "back_gallery": "← River",
+    "back_timeline": "← Current",
     "prev": "‹ Prev",
     "next": "Next ›",
     "confirm_delete": "Delete this photo/video? This removes it everywhere on the site and cannot be undone.",
