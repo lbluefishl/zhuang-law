@@ -352,6 +352,17 @@ h1 { font-size: 1.3rem; margin: 0 0 16px; }
 
 .login-form h1 { text-align: center; }
 
+/* Signup page only — the owner's personal note explaining what the site is
+   and how to use it. Left-aligned (unlike the centered h1 above it): a
+   multi-sentence paragraph reads better ragged-right than centered, and it's
+   substantive content, not a one-line hint, so it keeps the normal text
+   color rather than .field-hint's muted gray. */
+.signup-intro {
+  font-size: 0.9rem;
+  line-height: 1.5;
+  margin: 0;
+}
+
 .field-hint {
   margin: -8px 0 0;
   font-size: 0.8rem;
