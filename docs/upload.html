@@ -1,0 +1,277 @@
+<title>Add media — Admin</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<link rel="stylesheet" href="css/style.css">
+<link rel="stylesheet" href="css/admin.css">
+
+<nav class="site-nav">
+  <a href="gallery.html" data-i18n="nav.gallery">River</a>
+  <a href="timeline.html" data-i18n="nav.timeline">Current</a>
+  <a href="board.html" data-i18n="nav.board">Well</a>
+  <a href="reel.html" data-i18n="nav.reel">Stream</a>
+  <span class="spacer"></span>
+  <a href="cats.html" class="nav-secondary" data-i18n="nav.cats">Fiyero &amp; Satine</a>
+  <a href="settings.html" class="nav-secondary" data-i18n="nav.settings">Settings</a>
+  <button class="sign-out" data-sign-out data-i18n="nav.sign_out">Sign out</button>
+</nav>
+
+<main>
+  <h1 data-i18n="upload.title">Add media</h1>
+  <p class="field-hint" data-i18n="upload.intro">Pick photos or videos from your camera roll to add them to the site.</p>
+  <input type="file" id="file-input" accept="image/*,video/*" multiple>
+  <p class="loading-state" id="preparing-status" hidden></p>
+  <div id="review-list"></div>
+  <button type="button" id="upload-btn" class="secondary-button" hidden></button>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.0/dist/umd/supabase.js"></script>
+<script type="module">
+  import { supabaseClient } from './js/supabase-client.js';
+  import { requireAuth, initSignOutButtons } from './js/auth-guard.js';
+  import { prepareUpload } from './js/upload-media.js';
+  import { applyStoredLanguage, syncLanguageFromProfile, getStoredLanguage, t } from './js/i18n.js';
+
+  const session = await requireAuth();
+  initSignOutButtons();
+  const myId = session.user.id;
+  await syncLanguageFromProfile(supabaseClient, myId);
+  const dict = await applyStoredLanguage();
+
+  // Page-level gate, not an RLS one -- same pattern as admin-comments.html.
+  // The real enforcement is RLS (media_write requires is_admin()) on the
+  // insert below; this just keeps non-admins from landing on the page at
+  // all.
+  const { data: myProfile, error: profileError } = await supabaseClient
+    .from('profiles').select('is_admin').eq('id', myId).single();
+  if (profileError || !myProfile?.is_admin) {
+    window.location.href = 'gallery.html';
+    throw new Error('Not an admin — redirected.');
+  }
+
+  // Every collection is a valid upload destination, not just "baby" -- e.g.
+  // "cats" already exists as a row (family-site-spec.md: the collections
+  // abstraction is meant to make a new album a data change, not a code
+  // change) even before cats.html itself displays anything. Name shown
+  // matches whatever language is currently active.
+  const NAME_COLUMN = { en: 'name_en', zh: 'name_zh', yue: 'name_yue' }[getStoredLanguage()] || 'name_en';
+  const { data: collections, error: collectionsError } = await supabaseClient
+    .from('collections').select(`id, ${NAME_COLUMN}`).order('display_order');
+  if (collectionsError) throw collectionsError;
+
+  const fileInput = document.getElementById('file-input');
+  const preparingStatus = document.getElementById('preparing-status');
+  const reviewList = document.getElementById('review-list');
+  const uploadBtn = document.getElementById('upload-btn');
+
+  // One entry per selected file, from the moment it's picked until it's
+  // actually uploaded -- this is the "review before committing" step: see
+  // its thumbnail, pick which album it belongs in, and check/correct the
+  // detected date before anything actually leaves the phone.
+  const staged = [];
+
+  function formatDatetimeLocal(date) {
+    const pad = (n) => String(n).padStart(2, '0');
+    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+  }
+
+  function updateUploadButton() {
+    const pending = staged.filter((s) => !s.uploaded).length;
+    uploadBtn.hidden = pending === 0;
+    uploadBtn.textContent = t(dict, 'upload.upload_btn', { n: pending });
+  }
+
+  function buildCard(entry) {
+    const { prepared, file } = entry;
+    const card = document.createElement('div');
+    card.className = 'upload-card';
+
+    const thumb = document.createElement('img');
+    thumb.className = 'upload-thumb';
+    thumb.src = URL.createObjectURL(prepared.thumbBlob);
+    thumb.alt = '';
+    card.appendChild(thumb);
+
+    const body = document.createElement('div');
+    body.className = 'upload-card-body';
+
+    const name = document.createElement('div');
+    name.className = 'upload-name';
+    name.textContent = file.name;
+    body.appendChild(name);
+
+    const albumLabel = document.createElement('label');
+    albumLabel.className = 'upload-field';
+    const albumSpan = document.createElement('span');
+    albumSpan.textContent = t(dict, 'upload.album_label');
+    const albumSelect = document.createElement('select');
+    for (const c of collections) {
+      const opt = document.createElement('option');
+      opt.value = c.id;
+      opt.textContent = c[NAME_COLUMN];
+      albumSelect.appendChild(opt);
+    }
+    albumLabel.append(albumSpan, albumSelect);
+    body.appendChild(albumLabel);
+
+    const dateLabel = document.createElement('label');
+    dateLabel.className = 'upload-field';
+    const dateSpan = document.createElement('span');
+    dateSpan.textContent = t(dict, 'upload.date_label');
+    const dateInput = document.createElement('input');
+    dateInput.type = 'datetime-local';
+    dateInput.value = formatDatetimeLocal(prepared.dateTaken);
+    dateLabel.append(dateSpan, dateInput);
+    body.appendChild(dateLabel);
+
+    // Only shown when the date is a guess (file.lastModified, or "now" as
+    // the last resort) rather than something actually read from the file --
+    // an EXIF-backed date is trusted silently, same as the local pipeline.
+    if (prepared.dateSource !== 'exif') {
+      const warning = document.createElement('p');
+      warning.className = 'upload-date-warning';
+      warning.textContent = t(dict, 'upload.date_warning');
+      body.appendChild(warning);
+    }
+
+    card.appendChild(body);
+
+    const rightCol = document.createElement('div');
+    rightCol.className = 'upload-card-right';
+
+    const removeBtn = document.createElement('button');
+    removeBtn.type = 'button';
+    removeBtn.className = 'upload-remove';
+    removeBtn.setAttribute('aria-label', t(dict, 'upload.remove_btn'));
+    removeBtn.textContent = '✕';
+    removeBtn.addEventListener('click', () => {
+      URL.revokeObjectURL(thumb.src);
+      card.remove();
+      const idx = staged.indexOf(entry);
+      if (idx !== -1) staged.splice(idx, 1);
+      updateUploadButton();
+    });
+    rightCol.appendChild(removeBtn);
+
+    const status = document.createElement('span');
+    status.className = 'upload-status';
+    rightCol.appendChild(status);
+
+    card.appendChild(rightCol);
+    reviewList.appendChild(card);
+
+    return { card, albumSelect, dateInput, status, removeBtn };
+  }
+
+  // Preparing (thumbnail + date/dimensions, all in-browser -- see
+  // upload-media.js) happens up front for the whole batch, before any
+  // network call, so the review list can show real thumbnails right away.
+  fileInput.addEventListener('change', async () => {
+    const files = [...fileInput.files];
+    fileInput.value = ''; // lets the same file be picked again later without needing a fresh selection first
+    if (!files.length) return;
+
+    preparingStatus.hidden = false;
+    let done = 0;
+    preparingStatus.textContent = t(dict, 'upload.preparing_previews', { done, total: files.length });
+
+    for (const file of files) {
+      let prepared;
+      try {
+        prepared = await prepareUpload(file);
+      } catch (err) {
+        // Surfaces as its own failed card rather than silently dropping the
+        // file -- an admin picking the wrong file type should see why it
+        // didn't show up, not just find it missing.
+        const card = document.createElement('div');
+        card.className = 'upload-card upload-row-error';
+        card.textContent = `${file.name}: ${err.message}`;
+        reviewList.appendChild(card);
+        done++;
+        preparingStatus.textContent = t(dict, 'upload.preparing_previews', { done, total: files.length });
+        continue;
+      }
+      const entry = { file, prepared, uploaded: false };
+      Object.assign(entry, buildCard(entry));
+      staged.push(entry);
+      done++;
+      preparingStatus.textContent = t(dict, 'upload.preparing_previews', { done, total: files.length });
+    }
+
+    preparingStatus.hidden = true;
+    updateUploadButton();
+  });
+
+  async function getUploadUrl(kind, ext, contentType) {
+    const { data, error } = await supabaseClient.functions.invoke('get-upload-url', {
+      body: { kind, ext, contentType },
+    });
+    if (error) throw new Error(error.message || 'Could not get an upload URL');
+    return data;
+  }
+
+  async function putToR2(uploadUrl, headers, blob) {
+    const res = await fetch(uploadUrl, { method: 'PUT', headers, body: blob });
+    if (!res.ok) throw new Error(`Upload failed (${res.status})`);
+  }
+
+  async function uploadEntry(entry) {
+    const { prepared, file, albumSelect, dateInput, status } = entry;
+    albumSelect.disabled = true;
+    dateInput.disabled = true;
+    entry.removeBtn.disabled = true;
+    status.textContent = t(dict, 'upload.status_uploading');
+
+    const [mediaTarget, thumbTarget] = await Promise.all([
+      getUploadUrl('media', prepared.ext, prepared.contentType),
+      getUploadUrl('thumbnail', '.jpg', 'image/jpeg'),
+    ]);
+    await Promise.all([
+      putToR2(mediaTarget.uploadUrl, mediaTarget.headers, prepared.blob),
+      putToR2(thumbTarget.uploadUrl, thumbTarget.headers, prepared.thumbBlob),
+    ]);
+
+    // Same RLS path as everything else admin does client-side (see
+    // action-bar.js's deleteMedia) — media_write already permits an
+    // is_admin() session to insert directly, so nothing further is needed
+    // from the Edge Function beyond the two file uploads above. Album and
+    // date come from the (possibly admin-corrected) fields on the card, not
+    // straight from prepareUpload's own guesses.
+    const { error: insertError } = await supabaseClient.from('media').insert({
+      collection_id: albumSelect.value,
+      r2_key: mediaTarget.key,
+      thumb_key: thumbTarget.key,
+      media_type: prepared.mediaType,
+      date_taken: new Date(dateInput.value).toISOString(),
+      width: prepared.width,
+      height: prepared.height,
+      duration_seconds: prepared.durationSeconds,
+      source_filename: file.name,
+    });
+    if (insertError) throw insertError;
+
+    entry.uploaded = true;
+    status.textContent = t(dict, 'upload.status_done');
+  }
+
+  // One at a time, not all in parallel — several simultaneous multi-hundred
+  // MB video uploads over a phone's connection would just make all of them
+  // slower and more failure-prone, not faster overall. Each entry's own two
+  // uploads (media + thumbnail) still happen concurrently, see uploadEntry.
+  uploadBtn.addEventListener('click', async () => {
+    uploadBtn.disabled = true;
+    for (const entry of staged) {
+      if (entry.uploaded) continue;
+      try {
+        await uploadEntry(entry);
+      } catch (err) {
+        entry.status.textContent = t(dict, 'upload.status_error', { reason: err.message });
+        entry.card.classList.add('upload-row-error');
+        entry.albumSelect.disabled = false;
+        entry.dateInput.disabled = false;
+        entry.removeBtn.disabled = false;
+      }
+    }
+    uploadBtn.disabled = false;
+    updateUploadButton();
+  });
+</script>

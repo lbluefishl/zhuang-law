@@ -114,6 +114,19 @@
     "confirm_delete": "删除这张照片/视频?这会在网站上的所有地方移除它,且无法撤销。",
     "delete_error": "删除失败,请重试。"
   },
+  "upload": {
+    "title": "添加相片/影片",
+    "intro": "从手机相册选择相片或影片,添加到网站。",
+    "preparing_previews": "正在生成预览…({done}/{total})",
+    "album_label": "相册",
+    "date_label": "日期",
+    "date_warning": "找不到可靠的日期——请检查一下",
+    "remove_btn": "移除",
+    "upload_btn": "上传({n})",
+    "status_uploading": "上传中…",
+    "status_done": "已添加",
+    "status_error": "失败:{reason}"
+  },
   "comments": {
     "heading": "留言",
     "placeholder": "添加留言…",
@@ -160,6 +173,7 @@
     "done_delete_comments": "已完成——你的留言已被删除。",
     "admin_heading": "管理员",
     "admin_comments_link": "新留言",
+    "admin_upload_link": "添加相片/影片",
     "crop_heading": "调整你的照片",
     "crop_use_btn": "使用这张照片"
   },

@@ -114,6 +114,19 @@
     "confirm_delete": "刪除呢張相/片?會喺網站所有地方一齊移除,冇得返轉頭。",
     "delete_error": "刪除唔到,請再試一次。"
   },
+  "upload": {
+    "title": "上載相/片",
+    "intro": "喺手機相簿度揀相或者片,加落網站度。",
+    "preparing_previews": "整緊預覽…({done}/{total})",
+    "album_label": "相簿",
+    "date_label": "日期",
+    "date_warning": "搵唔到可靠嘅日期——唔該檢查下",
+    "remove_btn": "移除",
+    "upload_btn": "上載 ({n})",
+    "status_uploading": "上載緊…",
+    "status_done": "加咗喇",
+    "status_error": "失敗:{reason}"
+  },
   "comments": {
     "heading": "留言",
     "placeholder": "加個留言…",
@@ -160,6 +173,7 @@
     "done_delete_comments": "搞掂——你嘅留言已經刪除咗。",
     "admin_heading": "管理員",
     "admin_comments_link": "新留言",
+    "admin_upload_link": "上載相/片",
     "crop_heading": "調整你嘅相片",
     "crop_use_btn": "用呢張相"
   },

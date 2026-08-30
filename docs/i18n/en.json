@@ -114,6 +114,19 @@
     "confirm_delete": "Delete this photo/video? This removes it everywhere on the site and cannot be undone.",
     "delete_error": "Could not delete — please try again."
   },
+  "upload": {
+    "title": "Add media",
+    "intro": "Pick photos or videos from your camera roll to add them to the site.",
+    "preparing_previews": "Preparing previews… ({done}/{total})",
+    "album_label": "Album",
+    "date_label": "Date",
+    "date_warning": "No reliable date found — please check this",
+    "remove_btn": "Remove",
+    "upload_btn": "Upload ({n})",
+    "status_uploading": "Uploading…",
+    "status_done": "Added",
+    "status_error": "Failed: {reason}"
+  },
   "comments": {
     "heading": "Comments",
     "placeholder": "Add a comment…",
@@ -160,6 +173,7 @@
     "done_delete_comments": "Done — your comments have been deleted.",
     "admin_heading": "Admin",
     "admin_comments_link": "New comments",
+    "admin_upload_link": "Add media",
     "crop_heading": "Adjust your photo",
     "crop_use_btn": "Use photo"
   },

@@ -2,3 +2,4 @@
 node_modules/
 .DS_Store
 /exiftool-13.59_64/
+supabase/.temp/

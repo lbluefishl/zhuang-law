@@ -34,3 +34,98 @@
   color: var(--text-muted);
   font-style: italic;
 }
+
+/* upload.html */
+#file-input { margin: 12px 0; }
+
+#upload-btn { margin-top: 12px; }
+
+.upload-card {
+  display: flex;
+  gap: 12px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.upload-thumb {
+  flex-shrink: 0;
+  width: 84px;
+  height: 84px;
+  border-radius: 6px;
+  object-fit: cover;
+  background: var(--border);
+}
+
+.upload-card-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.upload-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+}
+
+/* Album/date pickers — label text stays put, the control takes the rest of
+   the row, same layout language as .login-form's label+input pairs. */
+.upload-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.85rem;
+}
+
+.upload-field span { flex-shrink: 0; color: var(--text-muted); }
+
+.upload-field select, .upload-field input {
+  flex: 1;
+  min-width: 0;
+  min-height: 36px;
+  padding: 0 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 0.85rem;
+  background: var(--surface);
+  color: var(--text);
+}
+
+.upload-date-warning {
+  margin: 0;
+  font-size: 0.8rem;
+  color: #ff6b5e;
+}
+
+.upload-card-right {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.upload-remove {
+  min-width: 32px;
+  min-height: 32px;
+  border: none;
+  border-radius: 6px;
+  background: none;
+  color: var(--text-muted);
+  font-size: 1rem;
+  cursor: pointer;
+}
+
+.upload-status {
+  flex-shrink: 0;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  text-align: right;
+}
+
+.upload-row-error { color: #ff6b5e; }
+.upload-row-error .upload-status { color: #ff6b5e; }
