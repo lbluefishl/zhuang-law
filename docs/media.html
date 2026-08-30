@@ -200,8 +200,15 @@
     // A preloaded neighbor becoming the visible item — reset it from its
     // hidden 1x1 preload state to how the "current" element normally looks.
     function promote(el, item) {
+      // demote() below hides an outgoing element with an inline
+      // position:absolute/1x1/opacity:0 style -- clearing it is what
+      // actually makes a re-promoted element visible again. Forgetting
+      // this for the photo branch (it was only reset for video) is exactly
+      // what caused Prev/Next to show a black screen when stepping back to
+      // an already-visited photo: the <img> was back in the stage, just
+      // still invisibly 1x1.
+      el.style.cssText = '';
       if (el.tagName === 'VIDEO') {
-        el.style.cssText = '';
         el.controls = true;
         el.muted = false;
         el.poster = `${R2_PUBLIC_URL}/${item.thumb_key}`;
