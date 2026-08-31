@@ -99,13 +99,18 @@ function makeVideoThumbnailAndMeta(file) {
       reject(err);
     }
 
-    video.addEventListener('loadeddata', () => {
-      // Some browsers already land on frame 0 on load; explicitly seeking
-      // guarantees it rather than relying on that.
-      video.currentTime = 0;
-    });
-    video.addEventListener('seeked', async () => {
+    // preload="auto" + seeking to currentTime 0 (the previous approach)
+    // still stalled indefinitely on iOS even once the element was attached
+    // to the DOM -- iOS Safari just doesn't reliably buffer real frame data
+    // from `preload` alone. Muted autoplay is the one thing every browser
+    // (iOS included -- this is precisely the muted+playsInline exemption)
+    // actually honors without a user gesture, and it's the same signal
+    // reel.html's poster-hiding fix already relies on for "a real frame is
+    // now on screen" on mobile. So: briefly play, grab the frame the moment
+    // `playing` fires, pause immediately.
+    video.addEventListener('playing', async () => {
       try {
+        video.pause();
         const canvas = document.createElement('canvas');
         const scale = THUMB_WIDTH / video.videoWidth;
         canvas.width = THUMB_WIDTH;
@@ -121,8 +126,9 @@ function makeVideoThumbnailAndMeta(file) {
       } catch (err) {
         cleanupAndReject(err);
       }
-    });
+    }, { once: true });
     video.addEventListener('error', () => cleanupAndReject(new Error('Could not read video')));
+    video.play().catch(() => {}); // NotAllowedError etc. just falls through to the timeout below with a real error, rather than throwing here
   });
 }
 
