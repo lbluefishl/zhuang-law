@@ -69,9 +69,18 @@
   // detected date before anything actually leaves the phone.
   const staged = [];
 
-  function formatDatetimeLocal(date) {
-    const pad = (n) => String(n).padStart(2, '0');
-    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+  // Split date/time, not a single type="datetime-local" -- Safari's support
+  // for the combined type is inconsistent (on an unsupported version it
+  // silently degrades to a plain text box with no picker UI at all, which
+  // is exactly what showed up on iPhone: no calendar icon, nothing happens
+  // on tap). Plain date/time have been reliably supported everywhere,
+  // Safari included, for years.
+  const pad = (n) => String(n).padStart(2, '0');
+  function formatDateInput(date) {
+    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+  }
+  function formatTimeInput(date) {
+    return `${pad(date.getHours())}:${pad(date.getMinutes())}`;
   }
 
   function updateUploadButton() {
@@ -118,9 +127,12 @@
     const dateSpan = document.createElement('span');
     dateSpan.textContent = t(dict, 'upload.date_label');
     const dateInput = document.createElement('input');
-    dateInput.type = 'datetime-local';
-    dateInput.value = formatDatetimeLocal(prepared.dateTaken);
-    dateLabel.append(dateSpan, dateInput);
+    dateInput.type = 'date';
+    dateInput.value = formatDateInput(prepared.dateTaken);
+    const timeInput = document.createElement('input');
+    timeInput.type = 'time';
+    timeInput.value = formatTimeInput(prepared.dateTaken);
+    dateLabel.append(dateSpan, dateInput, timeInput);
     body.appendChild(dateLabel);
 
     // Only shown when the date is a guess (file.lastModified, or "now" as
@@ -159,7 +171,7 @@
     card.appendChild(rightCol);
     reviewList.appendChild(card);
 
-    return { card, albumSelect, dateInput, status, removeBtn };
+    return { card, albumSelect, dateInput, timeInput, status, removeBtn };
   }
 
   // Preparing (thumbnail + date/dimensions, all in-browser -- see
@@ -215,9 +227,10 @@
   }
 
   async function uploadEntry(entry) {
-    const { prepared, file, albumSelect, dateInput, status } = entry;
+    const { prepared, file, albumSelect, dateInput, timeInput, status } = entry;
     albumSelect.disabled = true;
     dateInput.disabled = true;
+    timeInput.disabled = true;
     entry.removeBtn.disabled = true;
     status.textContent = t(dict, 'upload.status_uploading');
 
@@ -241,7 +254,7 @@
       r2_key: mediaTarget.key,
       thumb_key: thumbTarget.key,
       media_type: prepared.mediaType,
-      date_taken: new Date(dateInput.value).toISOString(),
+      date_taken: new Date(`${dateInput.value}T${timeInput.value || '00:00'}`).toISOString(),
       width: prepared.width,
       height: prepared.height,
       duration_seconds: prepared.durationSeconds,
@@ -268,6 +281,7 @@
         entry.card.classList.add('upload-row-error');
         entry.albumSelect.disabled = false;
         entry.dateInput.disabled = false;
+        entry.timeInput.disabled = false;
         entry.removeBtn.disabled = false;
       }
     }
