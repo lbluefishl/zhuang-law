@@ -63,6 +63,9 @@ function makePhotoThumbnail(bitmap) {
 // same "what does the video look like at 0:00" question has a
 // browser-native answer. Also the only place video width/height/duration
 // come from, same as ffprobe would have supplied on the desktop pipeline.
+// MediaError.code values (there's no built-in name-lookup for these).
+const MEDIA_ERROR_NAMES = { 1: 'MEDIA_ERR_ABORTED', 2: 'MEDIA_ERR_NETWORK', 3: 'MEDIA_ERR_DECODE', 4: 'MEDIA_ERR_SRC_NOT_SUPPORTED' };
+
 function makeVideoThumbnailAndMeta(file) {
   return new Promise((resolve, reject) => {
     const video = document.createElement('video');
@@ -78,13 +81,28 @@ function makeVideoThumbnailAndMeta(file) {
     // real enough for iOS to actually process it, invisible either way.
     video.style.cssText = 'position:absolute; width:1px; height:1px; opacity:0; pointer-events:none;';
     document.body.appendChild(video);
-    video.src = URL.createObjectURL(file);
+
+    // Diagnostics only -- this doesn't change behavior, it's here because
+    // "Timed out" alone gave no way to tell WHERE it got stuck (never
+    // started loading at all? loaded but couldn't decode? play() itself
+    // rejected?) without another full push-and-retest cycle on a real
+    // iPhone. Whatever the error ends up being, it now reports the last
+    // lifecycle event that actually fired plus the video's own state.
+    let lastEvent = 'none';
+    for (const name of ['loadstart', 'durationchange', 'loadedmetadata', 'loadeddata', 'canplay', 'canplaythrough', 'playing', 'stalled', 'suspend', 'waiting', 'abort']) {
+      video.addEventListener(name, () => { lastEvent = name; });
+    }
+
+    function diagnostics() {
+      const err = video.error ? ` mediaError=${MEDIA_ERROR_NAMES[video.error.code] || video.error.code}` : '';
+      return `lastEvent=${lastEvent} readyState=${video.readyState} networkState=${video.networkState}${err} fileType=${file.type || '(none)'} fileSize=${file.size}`;
+    }
 
     // Belt-and-suspenders: if something else entirely stalls this (a file
     // the browser just can't decode, some other platform quirk), fail
     // loudly after a while instead of leaving the admin staring at
     // "Preparing…" forever with nothing to go on.
-    const timeoutId = setTimeout(() => cleanupAndReject(new Error('Timed out reading video — try a different file')), 30000);
+    const timeoutId = setTimeout(() => cleanupAndReject(new Error(`Timed out reading video (${diagnostics()})`)), 15000);
 
     function cleanupAndResolve(result) {
       clearTimeout(timeoutId);
@@ -98,6 +116,8 @@ function makeVideoThumbnailAndMeta(file) {
       video.remove();
       reject(err);
     }
+
+    video.src = URL.createObjectURL(file);
 
     // preload="auto" + seeking to currentTime 0 (the previous approach)
     // still stalled indefinitely on iOS even once the element was attached
@@ -124,11 +144,13 @@ function makeVideoThumbnailAndMeta(file) {
           durationSeconds: Number.isFinite(video.duration) ? video.duration : null,
         });
       } catch (err) {
-        cleanupAndReject(err);
+        cleanupAndReject(new Error(`${err.message} (${diagnostics()})`));
       }
     }, { once: true });
-    video.addEventListener('error', () => cleanupAndReject(new Error('Could not read video')));
-    video.play().catch(() => {}); // NotAllowedError etc. just falls through to the timeout below with a real error, rather than throwing here
+    video.addEventListener('error', () => cleanupAndReject(new Error(`Could not read video (${diagnostics()})`)));
+    // NotAllowedError etc. surfaces immediately, with the real reason,
+    // instead of being swallowed and left to the generic timeout.
+    video.play().catch((err) => cleanupAndReject(new Error(`play() rejected: ${err.name}: ${err.message} (${diagnostics()})`)));
   });
 }
 
