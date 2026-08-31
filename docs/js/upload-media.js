@@ -69,7 +69,35 @@ function makeVideoThumbnailAndMeta(file) {
     video.preload = 'auto';
     video.muted = true;
     video.playsInline = true;
+    // iOS Safari specifically won't reliably load/decode a <video> that
+    // isn't actually in the document -- on desktop browsers a detached
+    // element still fires loadeddata/seeked fine, but on an iPhone this
+    // silently never fires either event at all, which is what turned into
+    // an indefinite "Preparing previews…" hang with no error. Hidden the
+    // same way the media viewer's preload elements are (see media.html) --
+    // real enough for iOS to actually process it, invisible either way.
+    video.style.cssText = 'position:absolute; width:1px; height:1px; opacity:0; pointer-events:none;';
+    document.body.appendChild(video);
     video.src = URL.createObjectURL(file);
+
+    // Belt-and-suspenders: if something else entirely stalls this (a file
+    // the browser just can't decode, some other platform quirk), fail
+    // loudly after a while instead of leaving the admin staring at
+    // "Preparing…" forever with nothing to go on.
+    const timeoutId = setTimeout(() => cleanupAndReject(new Error('Timed out reading video — try a different file')), 30000);
+
+    function cleanupAndResolve(result) {
+      clearTimeout(timeoutId);
+      URL.revokeObjectURL(video.src);
+      video.remove();
+      resolve(result);
+    }
+    function cleanupAndReject(err) {
+      clearTimeout(timeoutId);
+      URL.revokeObjectURL(video.src);
+      video.remove();
+      reject(err);
+    }
 
     video.addEventListener('loadeddata', () => {
       // Some browsers already land on frame 0 on load; explicitly seeking
@@ -84,19 +112,17 @@ function makeVideoThumbnailAndMeta(file) {
         canvas.height = Math.round(video.videoHeight * Math.min(scale, 1));
         canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
         const thumbBlob = await canvasToJpegBlob(canvas);
-        resolve({
+        cleanupAndResolve({
           thumbBlob,
           width: video.videoWidth,
           height: video.videoHeight,
           durationSeconds: Number.isFinite(video.duration) ? video.duration : null,
         });
       } catch (err) {
-        reject(err);
-      } finally {
-        URL.revokeObjectURL(video.src);
+        cleanupAndReject(err);
       }
     });
-    video.addEventListener('error', () => reject(new Error('Could not read video')));
+    video.addEventListener('error', () => cleanupAndReject(new Error('Could not read video')));
   });
 }
 
