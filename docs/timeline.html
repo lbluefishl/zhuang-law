@@ -30,6 +30,7 @@
   import { supabaseClient, R2_PUBLIC_URL } from './js/supabase-client.js';
   import { requireAuth, initSignOutButtons } from './js/auth-guard.js';
   import { ageLabel } from './js/age.js';
+  import { fetchAllRows } from './js/fetch-all.js';
   import { applyStoredLanguage, syncLanguageFromProfile, t } from './js/i18n.js';
 
   const session = await requireAuth();
@@ -51,14 +52,15 @@
     throw collectionError;
   }
 
-  const { data: media, error: mediaError } = await supabaseClient
-    .from('media')
-    .select('id, thumb_key, media_type, date_taken, is_live_photo_video')
-    .eq('collection_id', collection.id)
-    .eq('is_live_photo_video', false)
-    .order('date_taken', { ascending: true });
-
-  if (mediaError) {
+  let media;
+  try {
+    media = await fetchAllRows(() => supabaseClient
+      .from('media')
+      .select('id, thumb_key, media_type, date_taken, is_live_photo_video')
+      .eq('collection_id', collection.id)
+      .eq('is_live_photo_video', false)
+      .order('date_taken', { ascending: true }));
+  } catch (mediaError) {
     status.textContent = t(dict, 'timeline.error_media');
     throw mediaError;
   }

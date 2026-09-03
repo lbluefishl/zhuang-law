@@ -1,3 +1,5 @@
+import { fetchAllRows } from './fetch-all.js';
+
 // Replicates gallery.html's (date desc) or timeline.html's (date asc)
 // exact ordering, so the viewer's "Next" button advances through whichever
 // list the visitor actually came from, not some third, different order.
@@ -12,12 +14,14 @@ export async function loadOrderedItems(supabaseClient, from) {
     .from('collections').select('id').eq('slug', 'baby').single();
   if (collectionError) throw collectionError;
 
-  const { data, error } = await supabaseClient
+  // Supabase/PostgREST caps a single response at 1000 rows -- see
+  // fetch-all.js. Without paging here, Prev/Next near the newest (from
+  // gallery) or oldest (from timeline) end of a large-enough collection
+  // would silently run off a truncated list.
+  return fetchAllRows(() => supabaseClient
     .from('media')
     .select('id, r2_key, thumb_key, media_type, date_taken')
     .eq('collection_id', collection.id)
     .eq('is_live_photo_video', false)
-    .order('date_taken', { ascending: from === 'timeline' });
-  if (error) throw error;
-  return data;
+    .order('date_taken', { ascending: from === 'timeline' }));
 }

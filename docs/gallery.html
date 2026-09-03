@@ -41,6 +41,7 @@
   import { supabaseClient, R2_PUBLIC_URL } from './js/supabase-client.js';
   import { requireAuth, initSignOutButtons } from './js/auth-guard.js';
   import { loadMyFavoriteIds } from './js/favorites.js';
+  import { fetchAllRows } from './js/fetch-all.js';
   import { starIcon } from './js/icons.js';
   import { applyStoredLanguage, syncLanguageFromProfile, t } from './js/i18n.js';
 
@@ -66,14 +67,15 @@
     throw collectionError;
   }
 
-  const { data: media, error: mediaError } = await supabaseClient
-    .from('media')
-    .select('id, thumb_key, media_type, is_live_photo_video, date_taken, view_count')
-    .eq('collection_id', collection.id)
-    .eq('is_live_photo_video', false) // §6: the video half of a Live Photo pair stays hidden here
-    .order('date_taken', { ascending: false });
-
-  if (mediaError) {
+  let media;
+  try {
+    media = await fetchAllRows(() => supabaseClient
+      .from('media')
+      .select('id, thumb_key, media_type, is_live_photo_video, date_taken, view_count')
+      .eq('collection_id', collection.id)
+      .eq('is_live_photo_video', false) // §6: the video half of a Live Photo pair stays hidden here
+      .order('date_taken', { ascending: false }));
+  } catch (mediaError) {
     status.textContent = t(dict, 'gallery.error_media');
     throw mediaError;
   }
@@ -88,10 +90,11 @@
   // site, not a public platform) to just fetch every row and count in JS
   // rather than lean on a fragile PostgREST embedded-count-with-filter query.
   async function countByMediaId(table, { excludeDeleted } = {}) {
-    let query = supabaseClient.from(table).select('media_id');
-    if (excludeDeleted) query = query.is('deleted_at', null);
-    const { data, error } = await query;
-    if (error) throw error;
+    const data = await fetchAllRows(() => {
+      let query = supabaseClient.from(table).select('media_id');
+      if (excludeDeleted) query = query.is('deleted_at', null);
+      return query;
+    });
     const counts = new Map();
     for (const row of data) counts.set(row.media_id, (counts.get(row.media_id) || 0) + 1);
     return counts;

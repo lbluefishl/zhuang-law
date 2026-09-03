@@ -1,22 +1,25 @@
+import { fetchAllRows } from './fetch-all.js';
+
 // Every non-Live-Photo video across every collection is reel-eligible — no
 // curation step exists (or is needed) per the owner's direction. Order is a
 // weighted random shuffle favoring videos with more likes, recomputed fresh
 // on every load — a real feed, not a fixed playlist, but popular videos
 // surface more often without it being strictly "sorted by likes".
 export async function loadReelVideos(supabaseClient) {
-  const { data: videos, error } = await supabaseClient
+  const videos = await fetchAllRows(() => supabaseClient
     .from('media')
     .select('id, r2_key, thumb_key, width, height')
     .eq('media_type', 'video')
-    .eq('is_live_photo_video', false);
-  if (error) throw error;
+    .eq('is_live_photo_video', false));
   if (videos.length === 0) return [];
 
-  const { data: likeRows, error: likeError } = await supabaseClient
+  // .in() takes an explicit id list, not a blanket select, but still
+  // subject to the same 1000-row response cap on ITS OWN result once likes
+  // add up — see fetch-all.js.
+  const likeRows = await fetchAllRows(() => supabaseClient
     .from('likes')
     .select('media_id')
-    .in('media_id', videos.map((v) => v.id));
-  if (likeError) throw likeError;
+    .in('media_id', videos.map((v) => v.id)));
 
   const likeCounts = new Map();
   for (const row of likeRows) likeCounts.set(row.media_id, (likeCounts.get(row.media_id) || 0) + 1);

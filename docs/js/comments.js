@@ -1,3 +1,5 @@
+import { fetchAllRows } from './fetch-all.js';
+
 // Likes ---------------------------------------------------------------
 
 export async function loadLikeState(supabaseClient, mediaId, currentUserId) {
@@ -47,13 +49,11 @@ export async function loadVisibleCommentCount(supabaseClient, mediaId) {
 // comments are left out — a moderation feed of things people took back down
 // again isn't useful signal for "what's new."
 export async function loadAllComments(supabaseClient) {
-  const { data, error } = await supabaseClient
+  return fetchAllRows(() => supabaseClient
     .from('comments')
     .select('id, body, created_at, media_id, parent_comment_id, profiles(display_name, relationship, avatar_data_url), media(thumb_key, media_type)')
     .is('deleted_at', null)
-    .order('created_at', { ascending: false });
-  if (error) throw error;
-  return data;
+    .order('created_at', { ascending: false }));
 }
 
 export async function loadComments(supabaseClient, mediaId) {
