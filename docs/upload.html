@@ -177,7 +177,23 @@
   // Preparing (thumbnail + date/dimensions, all in-browser -- see
   // upload-media.js) happens up front for the whole batch, before any
   // network call, so the review list can show real thumbnails right away.
-  fileInput.addEventListener('change', async () => {
+  //
+  // Every file's prepareUpload() call is started here, back to back, with
+  // no `await` in between -- not one at a time in a sequential loop. A
+  // video's thumbnail grab needs a brief muted autoplay (see
+  // upload-media.js), and Safari only honors that without a fresh tap for
+  // as long as it still considers the call linked to the user's original
+  // gesture on the file picker. In a sequential loop, anything after the
+  // first file only gets its turn once everything before it has fully
+  // finished -- easily several seconds into a multi-file batch -- and
+  // Safari then rejects play() with NotAllowedError ("possibly because the
+  // user denied permission", which is misleading; nothing was denied, the
+  // gesture just aged out). A Promise's executor runs synchronously the
+  // instant it's constructed, so calling prepareUpload() for every file in
+  // one synchronous pass starts every video's play() call inside the same
+  // tick as the tap, regardless of how many files are in the batch or how
+  // long any one of them takes to finish preparing.
+  fileInput.addEventListener('change', () => {
     const files = [...fileInput.files];
     fileInput.value = ''; // lets the same file be picked again later without needing a fresh selection first
     if (!files.length) return;
@@ -186,31 +202,32 @@
     let done = 0;
     preparingStatus.textContent = t(dict, 'upload.preparing_previews', { done, total: files.length });
 
-    for (const file of files) {
-      let prepared;
-      try {
-        prepared = await prepareUpload(file);
-      } catch (err) {
-        // Surfaces as its own failed card rather than silently dropping the
-        // file -- an admin picking the wrong file type should see why it
-        // didn't show up, not just find it missing.
-        const card = document.createElement('div');
-        card.className = 'upload-card upload-row-error';
-        card.textContent = `${file.name}: ${err.message}`;
-        reviewList.appendChild(card);
+    const preparedPromises = files.map((file) => prepareUpload(file));
+
+    (async () => {
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        try {
+          const prepared = await preparedPromises[i];
+          const entry = { file, prepared, uploaded: false };
+          Object.assign(entry, buildCard(entry));
+          staged.push(entry);
+        } catch (err) {
+          // Surfaces as its own failed card rather than silently dropping
+          // the file -- an admin picking the wrong file type should see
+          // why it didn't show up, not just find it missing.
+          const card = document.createElement('div');
+          card.className = 'upload-card upload-row-error';
+          card.textContent = `${file.name}: ${err.message}`;
+          reviewList.appendChild(card);
+        }
         done++;
         preparingStatus.textContent = t(dict, 'upload.preparing_previews', { done, total: files.length });
-        continue;
       }
-      const entry = { file, prepared, uploaded: false };
-      Object.assign(entry, buildCard(entry));
-      staged.push(entry);
-      done++;
-      preparingStatus.textContent = t(dict, 'upload.preparing_previews', { done, total: files.length });
-    }
 
-    preparingStatus.hidden = true;
-    updateUploadButton();
+      preparingStatus.hidden = true;
+      updateUploadButton();
+    })();
   });
 
   async function getUploadUrl(kind, ext, contentType) {
