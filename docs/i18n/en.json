@@ -117,6 +117,7 @@
   "upload": {
     "title": "Add media",
     "intro": "Pick photos or videos from your camera roll to add them to the site.",
+    "prepare_btn": "Prepare ({n})",
     "preparing_previews": "Preparing previews… ({done}/{total})",
     "album_label": "Album",
     "date_label": "Date",

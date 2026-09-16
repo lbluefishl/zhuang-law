@@ -19,6 +19,7 @@
   <h1 data-i18n="upload.title">Add media</h1>
   <p class="field-hint" data-i18n="upload.intro">Pick photos or videos from your camera roll to add them to the site.</p>
   <input type="file" id="file-input" accept="image/*,video/*" multiple>
+  <button type="button" id="prepare-btn" class="secondary-button" hidden></button>
   <p class="loading-state" id="preparing-status" hidden></p>
   <div id="review-list"></div>
   <button type="button" id="upload-btn" class="secondary-button" hidden></button>
@@ -59,6 +60,7 @@
   if (collectionsError) throw collectionsError;
 
   const fileInput = document.getElementById('file-input');
+  const prepareBtn = document.getElementById('prepare-btn');
   const preparingStatus = document.getElementById('preparing-status');
   const reviewList = document.getElementById('review-list');
   const uploadBtn = document.getElementById('upload-btn');
@@ -174,28 +176,40 @@
     return { card, albumSelect, dateInput, timeInput, status, removeBtn };
   }
 
-  // Preparing (thumbnail + date/dimensions, all in-browser -- see
-  // upload-media.js) happens up front for the whole batch, before any
-  // network call, so the review list can show real thumbnails right away.
+  // Picking files just lists them -- it does NOT start preparing previews.
+  // A video's thumbnail grab needs a brief muted autoplay (see
+  // upload-media.js's makeVideoThumbnailAndMeta), and on iOS Safari the
+  // file picker's own `change` event does not reliably carry the same
+  // "user just interacted with the page" credential a direct tap does --
+  // the native OS picker sits in between, and by the time control returns
+  // to the page, play() gets rejected outright with NotAllowedError
+  // ("possibly because the user denied permission" -- nothing was denied,
+  // the event just isn't trusted the same way). readyState stayed at 0 in
+  // the reports of this: it never even started loading, immediately, even
+  // for a single freshly-picked file -- not a timing/batch-size issue.
   //
+  // The fix is a second, genuine tap: prepareBtn's click handler below is
+  // an ordinary in-page button click, which DOES carry real activation, so
+  // every video's play() call happens inside that instead.
+  let pendingFiles = [];
+  fileInput.addEventListener('change', () => {
+    pendingFiles = [...fileInput.files];
+    fileInput.value = ''; // lets the same file be picked again later without needing a fresh selection first
+    prepareBtn.hidden = pendingFiles.length === 0;
+    prepareBtn.textContent = t(dict, 'upload.prepare_btn', { n: pendingFiles.length });
+  });
+
   // Every file's prepareUpload() call is started here, back to back, with
   // no `await` in between -- not one at a time in a sequential loop. A
-  // video's thumbnail grab needs a brief muted autoplay (see
-  // upload-media.js), and Safari only honors that without a fresh tap for
-  // as long as it still considers the call linked to the user's original
-  // gesture on the file picker. In a sequential loop, anything after the
-  // first file only gets its turn once everything before it has fully
-  // finished -- easily several seconds into a multi-file batch -- and
-  // Safari then rejects play() with NotAllowedError ("possibly because the
-  // user denied permission", which is misleading; nothing was denied, the
-  // gesture just aged out). A Promise's executor runs synchronously the
-  // instant it's constructed, so calling prepareUpload() for every file in
-  // one synchronous pass starts every video's play() call inside the same
-  // tick as the tap, regardless of how many files are in the batch or how
-  // long any one of them takes to finish preparing.
-  fileInput.addEventListener('change', () => {
-    const files = [...fileInput.files];
-    fileInput.value = ''; // lets the same file be picked again later without needing a fresh selection first
+  // Promise's executor runs synchronously the instant it's constructed, so
+  // calling prepareUpload() for every file in one synchronous pass (all
+  // still within this same click) starts every video's play() call at
+  // once, rather than however many seconds later a sequential loop would
+  // reach whichever ones aren't first.
+  prepareBtn.addEventListener('click', () => {
+    const files = pendingFiles;
+    pendingFiles = [];
+    prepareBtn.hidden = true;
     if (!files.length) return;
 
     preparingStatus.hidden = false;

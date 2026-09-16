@@ -117,6 +117,7 @@
   "upload": {
     "title": "上載相/片",
     "intro": "喺手機相簿度揀相或者片,加落網站度。",
+    "prepare_btn": "準備 ({n})",
     "preparing_previews": "整緊預覽…({done}/{total})",
     "album_label": "相簿",
     "date_label": "日期",

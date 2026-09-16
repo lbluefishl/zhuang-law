@@ -117,6 +117,7 @@
   "upload": {
     "title": "添加相片/影片",
     "intro": "从手机相册选择相片或影片,添加到网站。",
+    "prepare_btn": "准备({n})",
     "preparing_previews": "正在生成预览…({done}/{total})",
     "album_label": "相册",
     "date_label": "日期",
